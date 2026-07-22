@@ -1,6 +1,8 @@
 # Vencord Activity Tracker
 
 A Vencord custom plugin that logs presence/activity changes and user profile updates for selected users.
+Forked from https://github.com/Ondra-D/vencord-activity-tracker/
+All credit where its due! The code isnt mine
 
 ## Features
 
