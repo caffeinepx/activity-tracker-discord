@@ -1,0 +1,2356 @@
+
+/* ── Toolbox / floating ─────────────────────────────────────────── */
+
+.stalker-toolbox-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 4px;
+    box-sizing: border-box;
+    color: var(--text-normal, #ddd);
+    border-radius: 8px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.stalker-toolbox-btn svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
+
+.stalker-toolbox-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--interactive-hover, #fff);
+}
+
+.stalker-dom-btn {
+    position: fixed;
+    right: 16px;
+    bottom: 56px;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--background-floating);
+    color: var(--text-normal);
+    border-radius: 8px;
+    z-index: 9999999;
+    cursor: pointer;
+    box-shadow: var(--elevation-high);
+}
+
+.stalker-dom-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* ── Shared icon button ─────────────────────────────────────────── */
+
+.stalker-icon-btn {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    min-width: 32px;
+    min-height: 32px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--interactive-normal);
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.stalker-icon-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--interactive-hover);
+}
+
+/* ── Screenshot mode ────────────────────────────────────────────── */
+
+.stalker-ss-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    z-index: 200;
+}
+
+.stalker-ss-toggle--on {
+    color: #fff !important;
+    background: rgba(88, 101, 242, 0.85) !important;
+    border-radius: 8px;
+}
+
+.stalker-ss-toggle--on:hover {
+    background: rgba(88, 101, 242, 1) !important;
+}
+
+.stalker-ss-mode-wrap {
+    position: relative;
+    z-index: 200;
+}
+
+.stalker-ss-mode-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--background-secondary, #2b2d31);
+    color: #f2f3f5;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.stalker-ss-mode-btn:hover {
+    background: var(--background-modifier-hover, #35373c);
+}
+
+.stalker-ss-mode-caret {
+    opacity: 0.7;
+    font-size: 10px;
+}
+
+.stalker-ss-mode-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 220px;
+    padding: 6px;
+    border-radius: 12px;
+    background: #111214;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+    /* above islands — shell/header must also allow overflow */
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.stalker-ss-mode-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #dbdee1;
+    cursor: pointer;
+    text-align: left;
+}
+
+.stalker-ss-mode-item:hover {
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
+}
+
+.stalker-ss-mode-item--active {
+    background: rgba(88, 101, 242, 0.2);
+    color: #fff;
+}
+
+.stalker-ss-mode-item__label {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.stalker-ss-mode-item__hint {
+    font-size: 11px;
+    color: #b5bac1;
+}
+
+.stalker-ss-mode-item--active .stalker-ss-mode-item__hint {
+    color: #c9cdfb;
+}
+
+.stalker-ss-avatar--blur {
+    filter: blur(8px);
+    transform: scale(1.06);
+    user-select: none;
+    pointer-events: none;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.stalker-ss-avatar--blackout {
+    background: #000 !important;
+    box-shadow: none !important;
+    border: none !important;
+    color: transparent !important;
+    overflow: hidden;
+}
+
+.stalker-ss-text--blur,
+.stalker-ss-text--blackout {
+    display: inline-block;
+    vertical-align: baseline;
+    max-width: 100%;
+    border-radius: 999px;
+    padding: 2px 10px;
+    line-height: 1.35;
+    user-select: none !important;
+    pointer-events: none;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.stalker-ss-text--blur {
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    background: rgba(180, 185, 195, 0.45);
+    filter: blur(5px);
+    padding: 3px 12px;
+    transform: translateZ(0);
+}
+
+.stalker-ss-text--blackout,
+.stalker-ss-text--blackout *,
+.stalker-log-entry__header-name .stalker-ss-text--blackout,
+.stalker-sidebar-user__name .stalker-ss-text--blackout,
+.stalker-sidebar-user__tag .stalker-ss-text--blackout {
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    text-shadow: none !important;
+    background: #000 !important;
+    background-color: #000 !important;
+    border: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+}
+
+.stalker-ss-text--blur,
+.stalker-ss-text--blur *,
+.stalker-log-entry__header-name .stalker-ss-text--blur,
+.stalker-sidebar-user__name .stalker-ss-text--blur,
+.stalker-sidebar-user__tag .stalker-ss-text--blur {
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    text-shadow: none !important;
+    border: none !important;
+}
+
+/* ── Modal shell + island layout ────────────────────────────────── */
+
+.stalker-modal {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-height: 90vh;
+}
+
+/* History modal only — do NOT apply to settings (shared class broke settings before) */
+.stalker-history-root {
+    width: 980px !important;
+    max-width: 980px !important;
+    height: 700px !important;
+    max-height: 700px !important;
+    min-width: 980px !important;
+    min-height: 700px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+}
+
+.stalker-history-root > [class*="header"],
+.stalker-history-root > [class*="Header"],
+.stalker-history-root [class*="footer"],
+.stalker-history-root [class*="Footer"] {
+    display: none !important;
+}
+
+.stalker-history-root > div:not(.stalker-islands-shell),
+.stalker-history-root [class*="content"]:not(.stalker-islands-shell):not(.stalker-island):not(.stalker-island--main):not(.stalker-main-body):not(.stalker-log-list),
+.stalker-history-root [class*="Content"]:not(.stalker-islands-shell) {
+    box-sizing: border-box;
+    background: transparent !important;
+    /* don’t zero padding on our shell — only Discord chrome wrappers */
+    overflow: visible !important;
+}
+
+/* Settings modal root */
+.stalker-settings-root {
+    width: 560px !important;
+    max-width: 560px !important;
+    height: 640px !important;
+    max-height: 640px !important;
+    min-height: 640px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+}
+
+.stalker-settings-root > [class*="header"],
+.stalker-settings-root > [class*="Header"],
+.stalker-settings-root [class*="footer"],
+.stalker-settings-root [class*="Footer"] {
+    display: none !important;
+}
+
+.stalker-settings-root > div:not(.stalker-islands-shell),
+.stalker-settings-root [class*="content"]:not(.stalker-islands-shell):not(.stalker-island):not(.stalker-settings-scroll),
+.stalker-settings-root [class*="Content"]:not(.stalker-islands-shell) {
+    box-sizing: border-box;
+    background: transparent !important;
+    overflow: visible !important;
+    height: 100%;
+}
+
+/* Outer shared backdrop — dark mica / acrylic stage behind islands */
+.stalker-islands-shell {
+    display: flex !important;
+    flex-direction: column !important;
+    /* space BETWEEN islands */
+    gap: 16px !important;
+    width: 100%;
+    height: 100%;
+    min-height: 680px;
+    max-height: 680px;
+    /* space BETWEEN shell edge and islands — forced so Discord chrome can’t zero it */
+    padding: 20px !important;
+    box-sizing: border-box !important;
+    border-radius: 28px;
+    /* frosted dark acrylic */
+    background:
+        linear-gradient(
+            165deg,
+            rgba(48, 49, 54, 0.55) 0%,
+            rgba(24, 25, 28, 0.75) 45%,
+            rgba(18, 19, 22, 0.82) 100%
+        );
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    /* glass rim: outer glow + inner highlight */
+    border: 1.5px solid rgba(255, 255, 255, 0.16);
+    outline: 1px solid rgba(255, 255, 255, 0.06);
+    outline-offset: -3px;
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.45),
+        0 20px 50px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.14),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    /* visible so screenshot mode menu can open over islands */
+    overflow: visible;
+    isolation: isolate;
+}
+
+.stalker-islands-shell--settings {
+    min-height: 620px;
+    max-height: 620px;
+    height: 100%;
+    padding: 18px !important;
+    gap: 14px !important;
+    overflow: hidden; /* settings doesn’t need dropdown over shell */
+}
+
+.stalker-islands-shell--compact {
+    min-height: 520px;
+    max-height: 520px;
+    padding: 18px !important;
+    gap: 14px !important;
+}
+
+/* Individual floating islands — sit above the acrylic shell */
+.stalker-island {
+    border-radius: 20px;
+    background: var(--background-secondary, #2b2d31);
+    box-shadow:
+        0 10px 28px rgba(0, 0, 0, 0.45),
+        0 2px 8px rgba(0, 0, 0, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    box-sizing: border-box;
+    position: relative;
+    z-index: 1;
+}
+
+.stalker-island--header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    flex-shrink: 0 !important;
+    min-height: 64px;
+    /* menu must paint above main island */
+    z-index: 50;
+    overflow: visible !important;
+}
+
+.stalker-islands-body {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    /* horizontal gap between sidebar + main islands */
+    gap: 16px !important;
+    overflow: hidden;
+    z-index: 1;
+    position: relative;
+}
+
+.stalker-island--sidebar {
+    width: 232px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 10px;
+    /* never show a sidebar scrollbar — content is compacted to fit */
+    overflow: hidden !important;
+    min-height: 0;
+    background: var(--background-secondary-alt, #232428);
+}
+
+.stalker-island--main {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 14px 16px 16px;
+    gap: 12px;
+    overflow: hidden;
+    background: var(--background-primary, #1e1f22);
+    z-index: 1;
+}
+
+.stalker-island--settings-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+    background: var(--background-primary, #1e1f22);
+}
+
+/* ── Settings content ───────────────────────────────────────────── */
+
+.stalker-settings-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto !important;
+    padding: 14px 16px;
+}
+
+.stalker-settings-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding-bottom: 8px;
+}
+
+.stalker-settings-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.stalker-settings-section__head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 2px;
+}
+
+.stalker-settings-section__title {
+    color: #f2f3f5 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    font-size: 11px !important;
+}
+
+.stalker-settings-section__note,
+.stalker-settings-hint,
+.stalker-settings-muted {
+    color: #b5bac1 !important;
+}
+
+.stalker-settings-card {
+    border-radius: 18px;
+    padding: 12px 14px;
+    background: var(--background-secondary, #2b2d31);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.stalker-settings-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.stalker-settings-row__main {
+    flex: 1;
+    min-width: 0;
+}
+
+.stalker-settings-subpanel {
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.stalker-settings-subpanel__label {
+    color: #dbdee1 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-size: 10px !important;
+}
+
+.stalker-settings-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.stalker-settings-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid #3f4147;
+    background: #2b2d31;
+    color: #dbdee1 !important;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.stalker-settings-chip:hover {
+    background: #35373c;
+}
+
+.stalker-settings-chip--on {
+    border-color: rgba(88, 101, 242, 0.55);
+    background: rgba(88, 101, 242, 0.18);
+    color: #f2f3f5 !important;
+}
+
+.stalker-settings-chip__box {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    border: 1.5px solid #80848e;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.stalker-settings-chip__box--on {
+    background: var(--brand-experiment, #5865f2);
+    border-color: var(--brand-experiment, #5865f2);
+    color: #fff;
+}
+
+.stalker-settings-chip__label {
+    line-height: 1.2;
+}
+
+.stalker-settings-radios {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.stalker-settings-radio {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: #dbdee1;
+}
+
+.stalker-settings-servers {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.stalker-settings-servers__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.stalker-settings-server-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.stalker-settings-server-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px 5px 6px;
+    border-radius: 999px;
+    background: #2b2d31;
+    border: 1px solid #3f4147;
+    color: #f2f3f5;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.stalker-settings-server-chip img {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+}
+
+.stalker-settings-server-chip button {
+    border: none;
+    background: transparent;
+    color: #b5bac1;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 2px;
+}
+
+.stalker-settings-server-chip button:hover {
+    color: #f23f43;
+}
+
+.stalker-settings-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.stalker-number-input--sm {
+    width: 64px !important;
+    padding: 6px 8px !important;
+}
+
+.stalker-settings-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+    background: var(--background-secondary, #2b2d31);
+    border-radius: 0 0 26px 26px;
+}
+
+.stalker-settings-footer__left,
+.stalker-settings-footer__right {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.stalker-server-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-bottom: 8px;
+}
+
+.stalker-server-check {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: 2px solid var(--interactive-normal, #b5bac1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.stalker-server-check--on {
+    background: var(--brand-experiment, #5865f2);
+    border-color: var(--brand-experiment, #5865f2);
+}
+
+.stalker-server-item__icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+}
+
+.stalker-modal-title-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.stalker-modal-title {
+    color: #f2f3f5 !important;
+    line-height: 1.2;
+}
+
+.stalker-modal-subtitle {
+    color: #b5bac1 !important;
+}
+
+.stalker-modal-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    position: relative;
+    z-index: 60;
+}
+
+.stalker-modal-timestamp {
+    cursor: unset;
+    height: unset;
+    color: var(--text-normal);
+}
+
+.stalker-modal-entry {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 16px;
+    background: var(--background-secondary);
+    border: 1px solid var(--background-tertiary);
+}
+
+.stalker-modal-entry .stalker-username {
+    color: var(--text-normal);
+    font-weight: 600;
+}
+
+.stalker-modal-entry .stalker-arrow {
+    color: var(--text-normal);
+}
+
+.stalker-export-btn {
+    margin-left: 12px;
+}
+
+/* ── Sidebar (inside sidebar island) ────────────────────────────── */
+
+.stalker-sidebar-user {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 8px;
+    border-radius: 12px;
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-accent);
+    flex-shrink: 0;
+}
+
+.stalker-sidebar-user .stalker-log-entry__avatar {
+    width: 44px;
+    height: 44px;
+}
+
+.stalker-sidebar-user__info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1px;
+    min-width: 0;
+    width: 100%;
+}
+
+.stalker-sidebar-user__name,
+.stalker-sidebar-user__name * {
+    color: #f2f3f5 !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.stalker-sidebar-user__tag,
+.stalker-sidebar-user__tag * {
+    color: #b5bac1 !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.stalker-sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.stalker-sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 8px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #dbdee1 !important;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.12s ease, color 0.12s ease;
+    flex-shrink: 0;
+}
+
+.stalker-sidebar-item:hover {
+    background: var(--background-modifier-hover);
+    color: #f2f3f5 !important;
+}
+
+.stalker-sidebar-item--active {
+    background: var(--background-modifier-selected, rgba(88, 101, 242, 0.15));
+    color: #fff !important;
+}
+
+.stalker-sidebar-item--active .stalker-sidebar-item__icon {
+    color: #949cf7 !important;
+}
+
+.stalker-sidebar-item__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    color: #b5bac1 !important;
+    opacity: 1;
+}
+
+.stalker-sidebar-item__icon svg {
+    fill: currentColor !important;
+    color: inherit !important;
+}
+
+.stalker-sidebar-item__content {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    flex: 1;
+}
+
+.stalker-sidebar-item__label {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: inherit !important;
+}
+
+.stalker-sidebar-item__desc {
+    font-size: 11px;
+    color: #949ba4 !important;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stalker-sidebar-item--active .stalker-sidebar-item__desc {
+    color: #b5bac1 !important;
+}
+
+.stalker-sidebar-item__count {
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #3f4147 !important;
+    color: #dbdee1 !important;
+    flex-shrink: 0;
+}
+
+.stalker-sidebar-item__count--has {
+    background: rgba(88, 101, 242, 0.28) !important;
+    color: #c9cdfb !important;
+}
+
+.stalker-sidebar-item--active .stalker-sidebar-item__count--has {
+    background: var(--brand-experiment, #5865f2) !important;
+    color: #fff !important;
+}
+
+.stalker-sidebar-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding-top: 6px;
+    border-top: 1px solid var(--background-modifier-accent);
+    flex-shrink: 0;
+    margin-top: auto;
+}
+
+.stalker-sidebar-actions button {
+    width: 100%;
+    justify-content: center;
+    min-height: 32px;
+    height: 32px;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.stalker-live-platform-strip {
+    gap: 4px !important;
+}
+
+/* ── Main panel (inside main island) ────────────────────────────── */
+
+.stalker-main-toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.stalker-main-toolbar__title {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.stalker-main-toolbar__desc {
+    color: var(--text-muted) !important;
+}
+
+.stalker-day-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-accent);
+    border-radius: 10px;
+    padding: 4px 6px;
+}
+
+.stalker-day-nav__btn {
+    min-width: 32px !important;
+}
+
+.stalker-day-nav__label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 120px;
+    text-align: center;
+}
+
+.stalker-day-nav__today {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-size: 11px;
+    color: var(--brand-experiment, #5865f2);
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.stalker-day-nav__today:hover {
+    text-decoration: underline;
+}
+
+.stalker-platform-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.stalker-platform-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1px solid #3f4147;
+    background: #2b2d31;
+    color: #dbdee1 !important;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.stalker-platform-chip:hover {
+    background: #35373c;
+    color: #f2f3f5 !important;
+}
+
+.stalker-platform-chip--active {
+    background: var(--brand-experiment, #5865f2) !important;
+    border-color: var(--brand-experiment, #5865f2) !important;
+    color: #fff !important;
+}
+
+.stalker-platform-chip__icon {
+    display: flex;
+    width: 14px;
+    height: 14px;
+    color: inherit !important;
+}
+
+.stalker-platform-chip__icon svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor !important;
+    color: inherit !important;
+}
+
+.stalker-main-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Log list / entries ─────────────────────────────────────────── */
+
+.stalker-log-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none !important;
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.stalker-log-entry {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: var(--background-secondary, #2b2d31);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.stalker-log-entry:hover {
+    border-color: rgba(88, 101, 242, 0.35);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+    transform: translateY(-1px);
+}
+
+.stalker-log-entry__identity {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.stalker-log-entry__identity-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.stalker-log-entry__time {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.stalker-log-entry__avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--background-tertiary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    flex-shrink: 0;
+}
+
+.stalker-log-entry__avatar--fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-normal);
+    font-weight: 700;
+    font-size: 14px;
+    background: linear-gradient(135deg, #5865f2 0%, #7c3aed 100%);
+    color: #fff;
+}
+
+.stalker-log-entry__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    font-weight: 600;
+}
+
+.stalker-log-entry__header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+    max-width: 60%;
+}
+
+.stalker-log-entry--suspicious {
+    border-color: rgba(242, 63, 66, 0.45) !important;
+    box-shadow: 0 0 0 1px rgba(242, 63, 66, 0.12), 0 2px 8px rgba(242, 63, 66, 0.08);
+}
+
+.stalker-log-entry--suspicious:hover {
+    border-color: rgba(242, 63, 66, 0.7) !important;
+    box-shadow: 0 4px 14px rgba(242, 63, 66, 0.15);
+}
+
+.stalker-invisible-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #f23f43 0%, #a61c1f 100%);
+    color: #fff !important;
+    box-shadow: 0 2px 6px rgba(242, 63, 67, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    cursor: help;
+    white-space: nowrap;
+}
+
+.stalker-invisible-badge svg {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+}
+
+.stalker-invisible-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(242, 63, 66, 0.12);
+    border: 1px solid rgba(242, 63, 66, 0.35);
+    color: #f23f43;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.stalker-invisible-banner svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.stalker-invisible-banner__text {
+    color: #f23f43;
+}
+
+.stalker-invisible-banner__hint {
+    display: block;
+    font-weight: 500;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.stalker-log-entry__header-name {
+    color: #f2f3f5 !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.stalker-log-entry__header-name,
+.stalker-log-entry__header-name * {
+    color: #f2f3f5 !important;
+}
+
+.stalker-log-entry__statuses {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.stalker-log-entry__statuses span {
+    color: var(--text-normal);
+}
+
+.stalker-log-entry__arrow {
+    color: var(--text-muted);
+    font-weight: 700;
+}
+
+.stalker-log-entry__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.stalker-meta-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+}
+
+.stalker-meta-chip--online {
+    background: rgba(35, 165, 89, 0.15);
+    color: #23a559;
+}
+
+.stalker-meta-chip--offline {
+    background: rgba(128, 132, 142, 0.18);
+    color: #a3a6aa;
+}
+
+/* ── Status badges ──────────────────────────────────────────────── */
+
+.stalker-status-badge {
+    padding: 4px 9px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    background: var(--background-modifier-accent);
+    color: var(--text-normal);
+    line-height: 1.2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.stalker-status-badge--online {
+    background: linear-gradient(135deg, #23a55a 0%, #1a8245 100%);
+    color: white !important;
+}
+
+.stalker-status-badge--idle {
+    background: linear-gradient(135deg, #f0b232 0%, #d8961b 100%);
+    color: #000000 !important;
+}
+
+.stalker-status-badge--dnd {
+    background: linear-gradient(135deg, #f23f43 0%, #c92c30 100%);
+    color: white !important;
+}
+
+.stalker-status-badge--offline,
+.stalker-status-badge--invisible {
+    background: linear-gradient(135deg, #80848e 0%, #63666e 100%);
+    color: white !important;
+}
+
+.stalker-status-badge--typing {
+    background: linear-gradient(135deg, #5865f2 0%, #4752c4 100%);
+    color: white !important;
+}
+
+.stalker-status-badge--message {
+    background: linear-gradient(135deg, #57f287 0%, #3bc467 100%);
+    color: #000000 !important;
+}
+
+.stalker-status-badge--activity {
+    background: linear-gradient(135deg, var(--background-modifier-accent) 0%, var(--background-tertiary) 100%);
+    border-color: var(--background-modifier-accent);
+    color: var(--text-normal);
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 9px 4px 5px !important;
+}
+
+.stalker-status-badge--spotify {
+    background: linear-gradient(135deg, #1db954 0%, #179c45 100%);
+    color: #ffffff !important;
+    box-shadow: 0 2px 4px rgba(29, 185, 84, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.stalker-status-badge--ytmusic {
+    background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+    color: #ffffff !important;
+    box-shadow: 0 2px 4px rgba(255, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.stalker-status-badge--profile {
+    background: linear-gradient(135deg, #5865f2 0%, #7c3aed 100%);
+    color: white;
+}
+
+.stalker-badge-duration {
+    font-size: 10px;
+    opacity: 0.85;
+    background: rgba(0, 0, 0, 0.22);
+    padding: 2px 5px;
+    border-radius: 4px;
+    margin-left: 4px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+}
+
+.stalker-status-transitions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.stalker-status-transition {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    background: var(--background-tertiary);
+    border: 1px solid var(--background-modifier-accent);
+}
+
+.stalker-status-transition__device {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: capitalize;
+    color: var(--text-muted);
+}
+
+.stalker-status-transition__device svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* ── Device / platform badges ───────────────────────────────────── */
+
+.stalker-device-badges {
+    display: inline-flex;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.stalker-device-badge {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    /* room for the ongoing status dot under the badge */
+    margin-bottom: 4px;
+    transition: transform 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stalker-device-badge svg {
+    width: 13px;
+    height: 13px;
+    fill: currentColor !important;
+}
+
+/*
+ * Ongoing platform: solid status-colored dot sitting under the device icon
+ * (green = online, yellow = idle, red = dnd). Stopped platforms have no dot.
+ */
+.stalker-device-badge__dot {
+    position: absolute;
+    left: 50%;
+    bottom: -5px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    transform: translateX(-50%);
+    border: 2px solid var(--background-secondary, #2b2d31);
+    box-sizing: content-box;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.stalker-device-badge--offline {
+    opacity: 0.55;
+    filter: grayscale(0.35);
+    margin-bottom: 0;
+}
+
+.stalker-device-badge--online {
+    opacity: 1;
+}
+
+/* Stopped platform that was recently active — slightly dimmer, no under-dot */
+.stalker-device-badge--stopped {
+    filter: saturate(0.85);
+    margin-bottom: 0;
+}
+
+.stalker-device-badge--ongoing {
+    z-index: 1;
+}
+
+.stalker-device-badge--changing {
+    transform: scale(1.12);
+    z-index: 1;
+}
+
+.stalker-live-platform-strip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.stalker-platform-presence {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.stalker-platform-presence__overall {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.stalker-platform-presence__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.stalker-platform-presence__label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-normal);
+}
+
+/* ── Empty state ────────────────────────────────────────────────── */
+
+.stalker-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 48px 24px;
+    text-align: center;
+    border-radius: 22px;
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px dashed rgba(255, 255, 255, 0.08);
+    flex: 1;
+}
+
+.stalker-empty-state__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--background-tertiary);
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.stalker-empty-state__icon svg {
+    width: 24px;
+    height: 24px;
+    opacity: 0.7;
+}
+
+.stalker-empty-state__text {
+    color: #f2f3f5 !important;
+    opacity: 1 !important;
+}
+
+.stalker-empty-state__hint {
+    color: #b5bac1 !important;
+    opacity: 1 !important;
+}
+
+.stalker-empty-state__icon {
+    color: #b5bac1 !important;
+    opacity: 1;
+}
+
+.stalker-empty-state__icon svg {
+    opacity: 0.9;
+    fill: currentColor;
+}
+
+/* ── Messages ───────────────────────────────────────────────────── */
+
+.stalker-message-context {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--background-tertiary);
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-accent);
+}
+
+.stalker-message-context__icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.stalker-message-context__icon--fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--background-accent, #5865f2);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.stalker-message-context__meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+    color: #f2f3f5 !important;
+}
+
+.stalker-message-context__meta *,
+.theme-dark .stalker-message-context__meta,
+.theme-dark .stalker-message-context__meta * {
+    color: inherit;
+}
+
+.theme-dark .stalker-message-context__meta {
+    color: #f2f3f5 !important;
+}
+
+.stalker-message-context__jump {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.stalker-message-content {
+    position: relative;
+    margin-top: 8px;
+    /* Extra left padding so text never sits under the accent bar */
+    padding: 12px 14px 12px 18px;
+    background: var(--background-secondary-alt, rgba(0, 0, 0, 0.18));
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-left: none;
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: pre-wrap;
+    color: #dbdee1 !important;
+    line-height: 1.45;
+    min-width: 0;
+}
+
+.stalker-message-content::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--brand-experiment, #5865f2);
+    pointer-events: none;
+}
+
+.stalker-message-content,
+.stalker-message-content * {
+    color: #dbdee1 !important;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* ── Activity badges / tooltips ─────────────────────────────────── */
+
+.stalker-activity-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.stalker-activity-icon {
+    width: 15px;
+    height: 15px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.stalker-activity-icon--fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background: linear-gradient(135deg, #5865f2 0%, #7c3aed 100%);
+    color: #fff !important;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.stalker-activity-badge-label {
+    line-height: 1.2;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.stalker-activity-tooltip {
+    max-width: 360px;
+}
+
+.stalker-activity-tooltip-body {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--background-floating);
+    border: 1px solid var(--background-tertiary);
+    color: var(--text-normal);
+    min-width: 250px;
+}
+
+.stalker-activity-assets {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+}
+
+.stalker-activity-large-image {
+    width: 64px;
+    height: 64px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: var(--background-tertiary);
+}
+
+.stalker-activity-large-image--app,
+.stalker-activity-assets .stalker-activity-icon--fallback {
+    width: 64px !important;
+    height: 64px !important;
+    border-radius: 12px;
+    font-size: 28px !important;
+}
+
+.stalker-activity-small-image {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid var(--background-floating);
+    background-color: var(--background-floating);
+}
+
+.stalker-activity-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 13px;
+    color: var(--text-normal);
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+}
+
+.stalker-activity-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--header-primary);
+    margin-bottom: 2px;
+}
+
+.stalker-activity-details,
+.stalker-activity-state {
+    font-size: 13px;
+    color: var(--text-normal);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+}
+
+.stalker-activity-time {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* ── Controls / forms ───────────────────────────────────────────── */
+
+.stalker-controls {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.stalker-controls__section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 220px;
+}
+
+.stalker-number-input {
+    padding: 8px 12px;
+    border: 1px solid var(--background-tertiary);
+    border-radius: 4px;
+    background: var(--background-secondary);
+    color: var(--text-normal);
+    font-size: 14px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.stalker-number-input:focus {
+    outline: none;
+    border-color: var(--brand-500);
+}
+
+.stalker-filter-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--background-tertiary);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+}
+
+.stalker-notify-toggle {
+    margin: 8px 0 4px 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--background-tertiary);
+}
+
+/* ── Profile comparison cards ───────────────────────────────────── */
+
+.stalker-profile-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    cursor: pointer;
+    justify-content: flex-end;
+}
+
+.stalker-profile-tooltip {
+    max-width: 800px !important;
+    padding: 0 !important;
+}
+
+.stalker-profile-comparison {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    padding: 20px;
+    background: var(--background-floating);
+    border-radius: 12px;
+    border: 1px solid var(--background-tertiary);
+}
+
+.stalker-profile-comparison__arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-normal);
+    flex-shrink: 0;
+    margin-top: 120px;
+}
+
+.stalker-profile-comparison__arrow svg {
+    opacity: 0.6;
+}
+
+.stalker-profile-card {
+    width: 340px;
+    background: var(--background-secondary);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.stalker-profile-card__label {
+    padding: 8px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--header-secondary);
+    background: var(--background-tertiary);
+    text-align: center;
+    border-bottom: 1px solid var(--background-modifier-accent);
+}
+
+.stalker-profile-card__banner-section {
+    position: relative;
+    height: 120px;
+    background: var(--profile-gradient-primary-color, #5865f2);
+}
+
+.stalker-profile-card__banner-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.stalker-profile-card__banner-color {
+    width: 100%;
+    height: 100%;
+}
+
+.stalker-profile-card__banner-default {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #5865f2 0%, #7c3aed 50%, #db2777 100%);
+}
+
+.stalker-profile-card__avatar-container {
+    position: absolute;
+    top: 76px;
+    left: 16px;
+    z-index: 2;
+}
+
+.stalker-profile-card__avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 6px solid var(--background-secondary);
+    background: var(--background-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--text-normal);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.stalker-profile-card__avatar--default {
+    background: var(--background-tertiary);
+    color: var(--header-primary);
+}
+
+.stalker-profile-card__avatar-decoration {
+    position: absolute;
+    top: -6px;
+    left: -6px;
+    width: 92px;
+    height: 92px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.stalker-profile-card__body {
+    padding: 64px 16px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.stalker-profile-card__user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.stalker-profile-card__display-name {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-normal);
+    line-height: 1.2;
+    word-break: break-word;
+}
+
+.stalker-profile-card__pronouns {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--text-muted);
+    margin-left: 4px;
+}
+
+.stalker-profile-card__username-tag {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+
+.stalker-profile-card__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.stalker-profile-card__badge {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    cursor: help;
+}
+
+.stalker-profile-card__divider {
+    height: 1px;
+    background: var(--background-modifier-accent);
+    margin: 4px 0;
+}
+
+.stalker-profile-card__section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.stalker-profile-card__section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--header-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stalker-profile-card__section-content {
+    font-size: 14px;
+    color: var(--text-normal);
+    line-height: 1.4;
+}
+
+.stalker-profile-card__bio {
+    font-size: 14px;
+    color: var(--text-normal);
+    line-height: 1.5;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.stalker-profile-card__connections {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.stalker-profile-card__connection {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--background-tertiary);
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-accent);
+}
+
+.stalker-profile-card__connection-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.stalker-profile-card__connection-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-normal);
+}
+
+.stalker-profile-card__note-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--header-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stalker-profile-card__note-content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.stalker-profile-card__note-line {
+    font-size: 13px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ── Server selector ────────────────────────────────────────────── */
+
+.stalker-server-search-input {
+    width: 100%;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    background-color: var(--input-background, var(--background-secondary)) !important;
+    border: 1px solid var(--input-border, var(--background-tertiary)) !important;
+    border-radius: 4px;
+    color: var(--text-normal) !important;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.stalker-server-search-input::placeholder {
+    color: var(--text-muted) !important;
+    opacity: 1 !important;
+}
+
+.stalker-server-search-input:focus {
+    outline: none;
+    border-color: var(--brand-experiment) !important;
+}
+
+.stalker-server-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background-color: var(--background-secondary) !important;
+    border: 1px solid var(--background-tertiary);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.stalker-server-item:hover {
+    background-color: var(--background-secondary-alt) !important;
+    border-color: var(--background-secondary-alt);
+}
+
+.stalker-server-item.selected {
+    background-color: var(--background-modifier-selected) !important;
+    border-color: var(--brand-experiment);
+}
+
+.stalker-server-item-name {
+    flex: 1;
+    font-weight: normal;
+    color: var(--text-normal);
+}
+
+.stalker-server-item.selected .stalker-server-item-name {
+    font-weight: 600;
+}
+
+/* ── Profile overview card ──────────────────────────────────────── */
+
+.stalker-overview-card {
+    margin: 12px;
+    background: var(--background-secondary);
+    border-radius: 12px;
+    padding: 14px;
+    border: 1px solid var(--background-modifier-accent);
+    box-shadow: var(--elevation-medium, 0 0 0 1px rgba(255, 255, 255, 0.04));
+}
+
+.stalker-overview-card-header {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--header-secondary);
+}
+
+.stalker-overview-card-header__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--header-primary);
+}
+
+.stalker-overview-card-header__title svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.85;
+}
+
+.stalker-overview-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.stalker-overview-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    gap: 12px;
+}
+
+.stalker-overview-stat-label {
+    color: var(--text-muted);
+}
+
+.stalker-overview-stat-value {
+    color: var(--text-normal);
+    font-weight: 600;
+    text-align: right;
+}
+
+.stalker-overview-text {
+    color: var(--text-normal);
+    font-size: 14px;
+}
+
+.stalker-overview-platforms {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--background-tertiary);
+    border: 1px solid var(--background-modifier-accent);
+}
+
+.stalker-overview-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.stalker-overview-actions button,
+.stalker-overview-view-btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--brand-experiment, #5865f2);
+    color: #fff;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.stalker-overview-view-btn:hover {
+    background: var(--brand-experiment-560, #4752c4);
+}
+
+.stalker-overview-view-btn:active {
+    transform: scale(0.98);
+}
+
+.stalker-overview-view-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.stalker-overview-secondary-btn {
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: var(--background-modifier-accent);
+    color: var(--interactive-normal);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease;
+}
+
+.stalker-overview-secondary-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--interactive-hover);
+}
+
+/* ── Theme fixes (force light-on-dark text/icons in tracker UI) ─── */
+
+.theme-dark .stalker-server-item-name,
+.theme-dark .stalker-server-search-input,
+.theme-dark .stalker-activity-tooltip-body,
+.theme-dark .stalker-activity-meta strong,
+.theme-dark .stalker-profile-comparison__arrow,
+.theme-dark .stalker-profile-card__display-name,
+.theme-dark .stalker-profile-card__connection-name,
+.theme-dark .stalker-modal-entry .stalker-username,
+.theme-dark .stalker-log-entry__header-name,
+.theme-dark .stalker-log-entry__header-name *,
+.theme-dark .stalker-overview-stat-value,
+.theme-dark .stalker-overview-text,
+.theme-dark .stalker-toolbox-btn,
+.theme-dark .stalker-number-input,
+.theme-dark .stalker-overview-card-header,
+.theme-dark .stalker-sidebar-item,
+.theme-dark .stalker-sidebar-item__label,
+.theme-dark .stalker-sidebar-item__label *,
+.theme-dark .stalker-modal-title,
+.theme-dark .stalker-sidebar-user__name,
+.theme-dark .stalker-sidebar-user__name *,
+.theme-dark .stalker-main-toolbar__title,
+.theme-dark .stalker-day-nav__label,
+.theme-dark .stalker-message-context__meta,
+.theme-dark .stalker-platform-chip {
+    color: #f2f3f5 !important;
+}
+
+.theme-dark .stalker-profile-card__username-tag,
+.theme-dark .stalker-profile-card__pronouns,
+.theme-dark .stalker-log-entry__meta,
+.theme-dark .stalker-overview-stat-label,
+.theme-dark .stalker-server-search-input::placeholder,
+.theme-dark .stalker-modal-subtitle,
+.theme-dark .stalker-sidebar-item__desc,
+.theme-dark .stalker-log-entry__time,
+.theme-dark .stalker-sidebar-user__tag,
+.theme-dark .stalker-main-toolbar__desc {
+    color: #b5bac1 !important;
+}
+
+.theme-dark .stalker-modal-head button,
+.theme-dark .stalker-icon-btn {
+    color: #f2f3f5 !important;
+}
+
+.theme-dark .stalker-history-root button svg,
+.theme-dark .stalker-settings-root button svg,
+.theme-dark .stalker-sidebar-item__icon svg,
+.theme-dark .stalker-platform-chip__icon svg,
+.theme-dark .stalker-day-nav svg {
+    fill: currentColor !important;
+    color: inherit !important;
+}
+
+.theme-dark .stalker-sidebar-item__icon {
+    color: #b5bac1 !important;
+}
+
+.theme-dark .stalker-sidebar-item--active .stalker-sidebar-item__icon {
+    color: #949cf7 !important;
+}
+
+.theme-dark .stalker-platform-chip:not(.stalker-platform-chip--active) {
+    color: #dbdee1 !important;
+    background: #2b2d31 !important;
+    border-color: #3f4147 !important;
+}
+
+.theme-dark .stalker-platform-chip:not(.stalker-platform-chip--active) svg {
+    fill: #dbdee1 !important;
+    color: #dbdee1 !important;
+}
+
+/* Keep active platform chip white on brand */
+.theme-dark .stalker-platform-chip--active,
+.theme-dark .stalker-platform-chip--active svg {
+    color: #fff !important;
+    fill: #fff !important;
+}
+
+.stalker-number-input::-webkit-outer-spin-button,
+.stalker-number-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.stalker-number-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+/* ── Responsive islands ─────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+    .stalker-islands-body {
+        flex-direction: column;
+    }
+
+    .stalker-island--sidebar {
+        width: 100%;
+        max-height: 220px;
+    }
+
+    .stalker-sidebar-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .stalker-sidebar-item {
+        flex: 1 1 40%;
+    }
+}

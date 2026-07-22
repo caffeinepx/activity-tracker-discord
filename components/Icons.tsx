@@ -1,0 +1,286 @@
+
+import { Tooltip } from "@webpack/common";
+import { formatTimestamp } from "../utils";
+
+function makeDeviceIcon(path: string, opts?: { viewBox?: string; width?: number; height?: number; }) {
+    return () => (
+        <svg
+            viewBox={opts?.viewBox ?? "0 0 24 24"}
+            width={opts?.width ?? 20}
+            height={opts?.height ?? 20}
+            fill="currentColor"
+        >
+            <path d={path} />
+        </svg>
+    );
+}
+
+export const DeviceIcons = {
+    desktop: makeDeviceIcon("M4 2.5c-1.103 0-2 .897-2 2v11c0 1.104.897 2 2 2h7v2H7v2h10v-2h-4v-2h7c1.103 0 2-.896 2-2v-11c0-1.103-.897-2-2-2H4Zm16 2v9H4v-9h16Z"),
+    web: makeDeviceIcon("M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93Zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39Z"),
+    mobile: makeDeviceIcon("M 187 0 L 813 0 C 916.277 0 1000 83.723 1000 187 L 1000 1313 C 1000 1416.277 916.277 1500 813 1500 L 187 1500 C 83.723 1500 0 1416.277 0 1313 L 0 187 C 0 83.723 83.723 0 187 0 Z M 125 1000 L 875 1000 L 875 250 L 125 250 Z M 500 1125 C 430.964 1125 375 1180.964 375 1250 C 375 1319.036 430.964 1375 500 1375 C 569.036 1375 625 1319.036 625 1250 C 625 1180.964 569.036 1125 500 1125 Z", { viewBox: "0 0 1000 1500", width: 17, height: 17 }),
+    embedded: makeDeviceIcon("M14.8 2.7 9 3.1V47h3.3c1.7 0 6.2.3 10 .7l6.7.6V2l-4.2.2c-2.4.1-6.9.3-10 .5zm1.8 6.4c1 1.7-1.3 3.6-2.7 2.2C12.7 10.1 13.5 8 15 8c.5 0 1.2.5 1.6 1.1zM16 33c0 6-.4 10-1 10s-1-4-1-10 .4-10 1-10 1 4 1 10zm15-8v23.3l3.8-.7c2-.3 4.7-.6 6-.6H43V3h-2.2c-1.3 0-4-.3-6-.6L31 1.7V25z", { viewBox: "0 0 50 50" }),
+    console: makeDeviceIcon("M14.8 2.7 9 3.1V47h3.3c1.7 0 6.2.3 10 .7l6.7.6V2l-4.2.2c-2.4.1-6.9.3-10 .5zm1.8 6.4c1 1.7-1.3 3.6-2.7 2.2C12.7 10.1 13.5 8 15 8c.5 0 1.2.5 1.6 1.1zM16 33c0 6-.4 10-1 10s-1-4-1-10 .4-10 1-10 1 4 1 10zm15-8v23.3l3.8-.7c2-.3 4.7-.6 6-.6H43V3h-2.2c-1.3 0-4-.3-6-.6L31 1.7V25z", { viewBox: "0 0 50 50" })
+};
+
+export function StalkerIcon() {
+    return (
+        <svg
+            stroke="currentColor"
+            fill="none"
+            strokeWidth="0"
+            viewBox="0 0 15 15"
+            height={24}
+            width={24}
+            xmlns="http://www.w3.org/2000/svg"
+        >
+            <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                fill="currentColor"
+                d="M3 2.5C3 2.22386 3.22386 2 3.5 2H9.08579C9.21839 2 9.34557 2.05268 9.43934 2.14645L11.8536 4.56066C11.9473 4.65443 12 4.78161 12 4.91421V12.5C12 12.7761 11.7761 13 11.5 13H3.5C3.22386 13 3 12.7761 3 12.5V2.5ZM3.5 1C2.67157 1 2 1.67157 2 2.5V12.5C2 13.3284 2.67157 14 3.5 14H11.5C12.3284 14 13 13.3284 13 12.5V4.91421C13 4.51639 12.842 4.13486 12.5607 3.85355L10.1464 1.43934C9.86514 1.15804 9.48361 1 9.08579 1H3.5ZM4.5 4C4.22386 4 4 4.22386 4 4.5C4 4.77614 4.22386 5 4.5 5H7.5C7.77614 5 8 4.77614 8 4.5C8 4.22386 7.77614 4 7.5 4H4.5ZM4.5 7C4.22386 7 4 7.22386 4 7.5C4 7.77614 4.22386 8 4.5 8H10.5C10.7761 8 11 7.77614 11 7.5C11 7.22386 10.7761 7 10.5 7H4.5ZM4.5 10C4.22386 10 4 10.2239 4 10.5C4 10.7761 4.22386 11 4.5 11H10.5C10.7761 11 11 10.7761 11 10.5C11 10.2239 10.7761 10 10.5 10H4.5Z"
+            />
+        </svg>
+    );
+}
+
+/** Compact history / logs icon for profile action buttons */
+export function HistoryIcon({ size = 20 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+            <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" />
+        </svg>
+    );
+}
+
+export function PresenceIcon() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="2" />
+            <circle cx="12" cy="12" r="4" />
+        </svg>
+    );
+}
+
+export function ProfileIcon() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+        </svg>
+    );
+}
+
+export function MessageIcon() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z" />
+        </svg>
+    );
+}
+
+export function ActivityIcon() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21.58 16.09l-1.09-7.66A3.996 3.996 0 0 0 16.53 5H7.47C5.48 5 3.79 6.46 3.51 8.43l-1.09 7.66C2.2 17.63 3.39 19 4.94 19c.68 0 1.32-.27 1.8-.75L9 16h6l2.25 2.25c.48.48 1.13.75 1.8.75 1.56 0 2.75-1.37 2.53-2.91zM11 11H9v2H8v-2H6v-1h2V8h1v2h2v1zm4-1c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm2 3c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z" />
+        </svg>
+    );
+}
+
+export function WarningIcon({ size = 14 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+        </svg>
+    );
+}
+
+export function BellIcon({ enabled, onClick }: { enabled: boolean; onClick: () => void; }) {
+    return (
+        <Tooltip text={enabled ? "Notifications enabled" : "Notifications disabled"}>
+            {tooltipProps => (
+                <button
+                    {...tooltipProps}
+                    onClick={onClick}
+                    className="stalker-icon-btn"
+                    style={{
+                        color: enabled ? "var(--status-positive)" : "var(--interactive-muted)",
+                    }}
+                >
+                    {enabled ? (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+                        </svg>
+                    ) : (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M20 18.69L7.84 6.14 5.27 3.49 4 4.76l2.8 2.8v.01c-.52.99-.8 2.16-.8 3.42v5l-2 2v1h13.73l2 2L21 19.72l-1-1.03zM12 22c1.11 0 2-.89 2-2h-4c0 1.11.89 2 2 2zm6-7.32V11c0-3.08-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68c-.15.03-.29.08-.42.12-.1.03-.2.07-.3.11h-.01c-.01 0-.01 0-.02.01-.23.09-.46.2-.68.31 0 0-.01 0-.01.01L18 14.68z" />
+                        </svg>
+                    )}
+                </button>
+            )}
+        </Tooltip>
+    );
+}
+
+const STATUS_META: Record<string, { bg: string; color: string; label: string; ring: string }> = {
+    online: { bg: "#23a559", color: "#fff", label: "Online", ring: "rgba(35, 165, 89, 0.45)" },
+    idle: { bg: "#f0b232", color: "#1e1e1e", label: "Idle", ring: "rgba(240, 178, 50, 0.45)" },
+    dnd: { bg: "#f23f42", color: "#fff", label: "Do Not Disturb", ring: "rgba(242, 63, 66, 0.45)" },
+    offline: { bg: "#80848e", color: "#fff", label: "Offline", ring: "rgba(128, 132, 142, 0.25)" },
+    invisible: { bg: "#80848e", color: "#fff", label: "Invisible", ring: "rgba(128, 132, 142, 0.25)" },
+};
+
+function statusMeta(status?: string | null) {
+    const key = (status ?? "offline").toLowerCase();
+    return STATUS_META[key] ?? STATUS_META.offline;
+}
+
+const ALL_PLATFORMS = ["desktop", "mobile", "web"] as const;
+
+export function DeviceBadges({
+    clientStatus,
+    deviceTimings,
+    entryTimestamp,
+    showAll = false,
+}: {
+    clientStatus?: Record<string, string>;
+    deviceTimings?: Array<{ device: string; status: string; start: number; end?: number | null }>;
+    entryTimestamp?: number;
+    /** When true, always render desktop/mobile/web so offline platforms are visible */
+    showAll?: boolean;
+}) {
+    if (deviceTimings && deviceTimings.length > 0) {
+        // Keep the latest segment per device (ongoing or most recently ended)
+        const deviceMap = new Map<string, typeof deviceTimings[number]>();
+        for (const timing of deviceTimings) {
+            const prev = deviceMap.get(timing.device);
+            if (!prev || (timing.start ?? 0) >= (prev.start ?? 0)) {
+                deviceMap.set(timing.device, timing);
+            }
+        }
+
+        const devices = showAll
+            ? ALL_PLATFORMS.map(d => deviceMap.get(d) ?? { device: d, status: "offline", start: 0, end: null as number | null })
+            : Array.from(deviceMap.values());
+
+        return (
+            <div className="stalker-device-badges">
+                {devices.map(timing => {
+                    const Icon = DeviceIcons[timing.device as keyof typeof DeviceIcons] ?? DeviceIcons.desktop;
+                    const isChanging = entryTimestamp !== undefined && (timing.start === entryTimestamp || timing.end === entryTimestamp);
+                    const offline = !timing.status || timing.status === "offline" || timing.status === "invisible";
+                    const meta = statusMeta(timing.status);
+                    // Ongoing = still active on this platform (segment has no end)
+                    const isOngoing = !offline && timing.end == null;
+                    const startedStr = timing.start ? formatTimestamp(timing.start) : "—";
+                    const stoppedStr = timing.end ? formatTimestamp(timing.end) : offline ? "—" : "Ongoing";
+                    const tooltipText = `${timing.device.toUpperCase()} · ${meta.label}\nStarted: ${startedStr}\nStopped: ${stoppedStr}`;
+
+                    return (
+                        <Tooltip key={`${timing.device}-${timing.start}`} text={tooltipText}>
+                            {tooltipProps => (
+                                <span
+                                    {...tooltipProps}
+                                    className={[
+                                        "stalker-device-badge",
+                                        `stalker-device-badge--${(timing.status ?? "offline").toLowerCase()}`,
+                                        offline ? "stalker-device-badge--offline" : "stalker-device-badge--online",
+                                        isChanging ? "stalker-device-badge--changing" : "",
+                                        isOngoing ? "stalker-device-badge--ongoing" : "",
+                                        !isOngoing && !offline ? "stalker-device-badge--stopped" : "",
+                                    ].filter(Boolean).join(" ")}
+                                    style={{
+                                        backgroundColor: offline ? "var(--background-modifier-accent, #4e5058)" : meta.bg,
+                                        color: offline ? "var(--text-muted, #b5bac1)" : meta.color,
+                                        boxShadow: isChanging && !offline ? `0 0 0 2px ${meta.ring}` : undefined,
+                                        opacity: !offline && !isOngoing ? 0.7 : undefined,
+                                    }}
+                                    data-status={timing.status ?? "offline"}
+                                    data-device={timing.device}
+                                    data-ongoing={isOngoing ? "true" : "false"}
+                                >
+                                    <Icon />
+                                    {/* Status-colored dot under icon = this platform is still ongoing */}
+                                    {isOngoing && (
+                                        <span
+                                            className="stalker-device-badge__dot"
+                                            style={{ backgroundColor: meta.bg }}
+                                            aria-hidden
+                                        />
+                                    )}
+                                </span>
+                            )}
+                        </Tooltip>
+                    );
+                })}
+            </div>
+        );
+    }
+
+    if (!clientStatus && !showAll) return null;
+
+    const statusMap = clientStatus ?? {};
+    const devices = showAll
+        ? ALL_PLATFORMS.map(d => [d, statusMap[d] ?? "offline"] as const)
+        : Object.entries(statusMap).filter(([, status]) => status && status !== "offline");
+
+    if (!devices.length) return null;
+
+    return (
+        <div className="stalker-device-badges">
+            {devices.map(([device, status]) => {
+                const Icon = DeviceIcons[device as keyof typeof DeviceIcons] ?? DeviceIcons.desktop;
+                const offline = !status || status === "offline" || status === "invisible";
+                const meta = statusMeta(status);
+                const isOngoing = !offline;
+                return (
+                    <Tooltip key={`${device}-${status}`} text={`${device.toUpperCase()} · ${meta.label}`}>
+                        {tooltipProps => (
+                            <span
+                                {...tooltipProps}
+                                className={[
+                                    "stalker-device-badge",
+                                    `stalker-device-badge--${(status ?? "offline").toLowerCase()}`,
+                                    offline ? "stalker-device-badge--offline" : "stalker-device-badge--online",
+                                    isOngoing ? "stalker-device-badge--ongoing" : "",
+                                ].filter(Boolean).join(" ")}
+                                style={{
+                                    backgroundColor: offline ? "var(--background-modifier-accent, #4e5058)" : meta.bg,
+                                    color: offline ? "var(--text-muted, #b5bac1)" : meta.color,
+                                }}
+                                data-status={status ?? "offline"}
+                                data-device={device}
+                                data-ongoing={isOngoing ? "true" : "false"}
+                            >
+                                <Icon />
+                                {isOngoing && (
+                                    <span
+                                        className="stalker-device-badge__dot"
+                                        style={{ backgroundColor: meta.bg }}
+                                        aria-hidden
+                                    />
+                                )}
+                            </span>
+                        )}
+                    </Tooltip>
+                );
+            })}
+        </div>
+    );
+}
+
+/** Live platform presence row for profile overview cards */
+export function PlatformPresenceRow({ clientStatus, overallStatus }: { clientStatus?: Record<string, string>; overallStatus?: string | null }) {
+    const overall = statusMeta(overallStatus);
+    return (
+        <div className="stalker-platform-presence">
+            <div className="stalker-platform-presence__overall">
+                <span
+                    className="stalker-platform-presence__dot"
+                    style={{ backgroundColor: overall.bg, boxShadow: `0 0 0 3px ${overall.ring}` }}
+                />
+                <span className="stalker-platform-presence__label">{overall.label}</span>
+            </div>
+            <DeviceBadges clientStatus={clientStatus} showAll />
+        </div>
+    );
+}
