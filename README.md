@@ -28,8 +28,8 @@ https://youtu.be/XmVNRKrphlw?si=XFwjkwU_1bMOjOUc
 
 ## Screenshots
 
-![Settings](./assets/settings.jpg)
-![Presence](./assets/presence.jpg)
-![Rich Presence](./assets/Rich%20Presence.jpg)
-![Profile](./assets/Profile.jpg)
-![Messages](./assets/messages.jpg)
+![Settings](./assets/settings.png)
+![Presence](./assets/presence.png)
+![Rich Presence](./assets/Rich%20Presence.png)
+![Profile](./assets/Profile.png)
+![Messages](./assets/messages.png)
