@@ -10,13 +10,7 @@ Forked from [Ondra-D/vencord-activity-tracker](https://github.com/Ondra-D/vencor
 
 ### Core (original plugin)
 
-- Presence + status change logging
-- Activity / rich presence logging
-- Profile change logging (avatar, banner, username/display name, bio, decorations, custom status, …)
-- Optional message + typing notifications
-- Per-user settings (what to log / notify)
-- Local history with configurable retention
-- Desktop native helpers for opening log files / folders
+- The core remains unchanged. Only extra changes and new features added!
 
 ### What this fork adds / improves
 
@@ -61,6 +55,16 @@ Forked from [Ondra-D/vencord-activity-tracker](https://github.com/Ondra-D/vencor
 #### Profile overview
 
 - Activity Tracker section on tracked user profiles (online duration / last seen, platform row, quick open history)
+
+---
+
+## Screenshots
+
+![Settings](./assets/settings.png)
+![Presence](./assets/presence.png)
+![Rich Presence](./assets/Rich%20Presence.png)
+![Profile](./assets/Profile.png)
+![Messages](./assets/messages.png)
 
 ---
 
@@ -131,14 +135,6 @@ Or follow: https://youtu.be/XmVNRKrphlw?si=XFwjkwU_1bMOjOUc
 2. Right-click a tracked user → **Presence History** or **Stop Tracking**
 3. Use the **eye** in the channel toolbar for quick history access
 4. Open plugin settings for retention, screenshot default mode, and toolbar visibility
-
-## Screenshots
-
-![Settings](./assets/settings.png)
-![Presence](./assets/presence.png)
-![Rich Presence](./assets/Rich%20Presence.png)
-![Profile](./assets/Profile.png)
-![Messages](./assets/messages.png)
 
 ## License
 
