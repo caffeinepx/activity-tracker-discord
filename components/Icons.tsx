@@ -1,4 +1,5 @@
 
+import type { SVGProps } from "react";
 import { Tooltip } from "@webpack/common";
 import { formatTimestamp } from "../utils";
 
@@ -45,10 +46,147 @@ export function StalkerIcon() {
 }
 
 /** Compact history / logs icon for profile action buttons */
-export function HistoryIcon({ size = 20 }: { size?: number }) {
+export function HistoryIcon({ size = 20, width, height }: { size?: number; width?: number; height?: number; }) {
+    const w = width ?? size;
+    const h = height ?? size;
     return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+        <svg width={w} height={h} viewBox="0 0 24 24" fill="currentColor">
             <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" />
+        </svg>
+    );
+}
+
+/**
+ * Discord-compatible icon props (HeaderBarIcon / context menus pass these).
+ * Color comes from CSS (e.g. .clickable .icon { color: var(--icon-muted) })
+ * when color is "currentColor", or from the color prop when set explicitly.
+ */
+type DiscordIconProps = SVGProps<SVGSVGElement> & {
+    size?: number | string;
+    color?: string;
+    colorClass?: string;
+    foreground?: unknown;
+    background?: unknown;
+};
+
+/** Eye icon — toolbar (global history) + "Track User" context menu */
+export function EyeIcon({
+    width = 24,
+    height = 24,
+    color = "currentColor",
+    className,
+    colorClass,
+    size: _size,
+    foreground: _fg,
+    background: _bg,
+    ...rest
+}: DiscordIconProps) {
+    return (
+        <svg
+            aria-hidden
+            role="img"
+            width={width}
+            height={height}
+            viewBox="0 0 24 24"
+            className={className}
+            fill="none"
+            {...rest}
+        >
+            <path fill={color} className={colorClass} d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+            <path
+                fill={color}
+                className={colorClass}
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M1.323 11.447C2.811 6.976 7.028 3.75 12.001 3.75c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113-1.487 4.471-5.705 7.697-10.677 7.697-4.97 0-9.186-3.223-10.675-7.69a1.762 1.762 0 0 1 0-1.113ZM17.25 12a5.25 5.25 0 1 1-10.5 0 5.25 5.25 0 0 1 10.5 0Z"
+            />
+        </svg>
+    );
+}
+
+/**
+ * Per-user eye icon — used in toolbar when viewing a tracked user's DM.
+ * Same tokens/color as EyeIcon; design differs (eye + person mark) so it's
+ * clear the click opens that user's history, not the combined log.
+ */
+export function EyeUserIcon({
+    width = 24,
+    height = 24,
+    color = "currentColor",
+    className,
+    colorClass,
+    size: _size,
+    foreground: _fg,
+    background: _bg,
+    ...rest
+}: DiscordIconProps) {
+    return (
+        <svg
+            aria-hidden
+            role="img"
+            width={width}
+            height={height}
+            viewBox="0 0 24 24"
+            className={className}
+            fill="none"
+            {...rest}
+        >
+            {/* Eye (slightly shifted left/up to make room for the user mark) */}
+            <path
+                fill={color}
+                className={colorClass}
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M1.2 9.9C2.55 6.15 6.1 3.5 10.2 3.5c4.05 0 7.55 2.6 8.95 6.3.1.3.1.62 0 .92-1.4 3.7-4.9 6.3-8.95 6.3-4.1 0-7.65-2.65-9-6.4a1.4 1.4 0 0 1 0-.92ZM14.4 10.35a4.2 4.2 0 1 1-8.4 0 4.2 4.2 0 0 1 8.4 0Z"
+            />
+            <circle fill={color} className={colorClass} cx="10.2" cy="10.35" r="2.15" />
+            {/* Person mark (bottom-right) — design-only differentiator */}
+            <circle fill={color} className={colorClass} cx="17.6" cy="15.2" r="2.05" />
+            <path
+                fill={color}
+                className={colorClass}
+                d="M13.4 21.2c0-2.25 1.9-4.05 4.2-4.05s4.2 1.8 4.2 4.05v.3H13.4v-.3Z"
+            />
+        </svg>
+    );
+}
+
+/** Eye-off icon — "Stop Tracking" context menu */
+export function EyeOffIcon({
+    width = 24,
+    height = 24,
+    color = "currentColor",
+    className,
+    colorClass,
+    size: _size,
+    foreground: _fg,
+    background: _bg,
+    ...rest
+}: DiscordIconProps) {
+    return (
+        <svg
+            aria-hidden
+            role="img"
+            width={width}
+            height={height}
+            viewBox="0 0 24 24"
+            className={className}
+            fill="none"
+            {...rest}
+        >
+            <path fill={color} className={colorClass} d="M3.53 2.47a.75.75 0 0 0-1.06 1.06l18 18a.75.75 0 1 0 1.06-1.06l-18-18ZM22.676 12.553a11.249 11.249 0 0 1-2.631 4.31l-3.099-3.099a5.25 5.25 0 0 0-6.71-6.71L7.759 4.577a11.217 11.217 0 0 1 4.242-.827c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113Z" />
+            <path fill={color} className={colorClass} d="M15.75 12c0 .18-.013.357-.037.53l-4.244-4.243A3.75 3.75 0 0 1 15.75 12ZM12.53 15.713l-4.243-4.244a3.75 3.75 0 0 0 4.244 4.243Z" />
+            <path fill={color} className={colorClass} d="M6.75 12c0-.619.107-1.213.304-1.764l-3.1-3.1a11.25 11.25 0 0 0-2.63 4.31c-.12.362-.12.752 0 1.114 1.489 4.467 5.704 7.69 10.675 7.69 1.5 0 2.933-.294 4.242-.827l-2.477-2.477A5.25 5.25 0 0 1 6.75 12Z" />
+        </svg>
+    );
+}
+
+/** Clock/history icon for context menu "Presence History" */
+export function CtxHistoryIcon({ width = 18, height = 18 }: { width?: number; height?: number; }) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={width} height={height} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
         </svg>
     );
 }

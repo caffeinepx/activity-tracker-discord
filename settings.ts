@@ -30,6 +30,16 @@ export const settings = definePluginSettings({
             { label: "Black out", value: "blackout" },
         ]
     },
+    showToolbarIcon: {
+        default: true,
+        type: OptionType.BOOLEAN,
+        description: "Show Activity History eye button in the channel toolbar (next to call / pin / etc.)"
+    },
+    toolbarOnlyTrackedUsers: {
+        default: false,
+        type: OptionType.BOOLEAN,
+        description: "Only show the toolbar button in DMs with tracked users (otherwise show on all channels)"
+    },
     debug: {
         default: false,
         type: OptionType.BOOLEAN,

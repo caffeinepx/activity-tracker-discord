@@ -5,14 +5,15 @@
 import "./styles.css";
 
 import { addContextMenuPatch, NavContextMenuPatchCallback, removeContextMenuPatch } from "@api/ContextMenu";
+import { ChannelToolbarButton } from "@api/HeaderBar";
 import { showNotification } from "@api/Notifications";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { fetchUserProfile } from "@utils/discord";
 import definePlugin from "@utils/types";
 import { findComponentByCodeLazy } from "@webpack";
-import { ChannelStore, GuildStore, Menu, PresenceStore, useEffect, UserProfileStore, UserStore, useState } from "@webpack/common";
+import { ChannelStore, GuildStore, Menu, PresenceStore, SelectedChannelStore, useEffect, UserProfileStore, UserStore, useState, useStateFromStores } from "@webpack/common";
 
-import { HistoryIcon, openPresenceHistoryModal, PlatformPresenceRow, StalkerIcon } from "./components";
+import { CtxHistoryIcon, EyeIcon, EyeOffIcon, EyeUserIcon, HistoryIcon, openPresenceHistoryModal, PlatformPresenceRow, StalkerIcon } from "./components";
 import { getWhitelistedIds, settings } from "./settings";
 import {
     activityLogCooldowns,
@@ -60,32 +61,77 @@ import {
     updateMobileOnlineCandidate
 } from "./utils";
 
-const _HeaderBarIcon = findComponentByCodeLazy(".HEADER_BAR_BADGE_TOP:", '.iconBadge,"top"');
+/** DM type in Discord channel records (1:1 private message). */
+const CHANNEL_TYPE_DM = 1;
 
-const HeaderBarIcon = _HeaderBarIcon ?? ((props: any) => {
-    const Icon = props.icon;
-    return (
-        <div
-            className={props.className}
-            onClick={props.onClick}
-            title={props.tooltip}
-            style={{ display: "inline-flex", alignItems: "center", cursor: "pointer", height: 24 }}
-        >
-            {Icon ? <Icon /> : null}
-        </div>
+/**
+ * If the current channel is a 1:1 DM with a tracked user, return their id.
+ * Otherwise null (guild channels, group DMs, untracked DMs → combined history).
+ */
+function getTrackedDmUserId(): string | null {
+    try {
+        const channelId = SelectedChannelStore.getChannelId?.();
+        if (!channelId) return null;
+        const channel = ChannelStore.getChannel(channelId);
+        if (!channel || channel.type !== CHANNEL_TYPE_DM) return null;
+        const recipientId = channel.recipients?.[0] ?? channel.recipientId ?? null;
+        if (!recipientId || recipientId === UserStore.getCurrentUser()?.id) return null;
+        return isInWhitelist(recipientId) ? recipientId : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Toolbar variant — keeps Discord's icon class + token-aligned styling */
+function ToolbarEyeIcon(props: any) {
+    const className = [props.className, "stalker-toolbar-eye"].filter(Boolean).join(" ");
+    return <EyeIcon {...props} className={className} color={props.color ?? "currentColor"} />;
+}
+
+/** Per-user toolbar icon (tracked DM) — design differs from global eye */
+function ToolbarEyeUserIcon(props: any) {
+    const className = [props.className, "stalker-toolbar-eye"].filter(Boolean).join(" ");
+    return <EyeUserIcon {...props} className={className} color={props.color ?? "currentColor"} />;
+}
+
+const OpenHistoryToolbarButton = ErrorBoundary.wrap(() => {
+    const { showToolbarIcon, toolbarOnlyTrackedUsers, whitelistedIds } = settings.use([
+        "showToolbarIcon",
+        "toolbarOnlyTrackedUsers",
+        "whitelistedIds",
+    ]);
+
+    // Re-render when switching channels so icon / target stay in sync.
+    // whitelistedIds from settings.use also re-renders after track/untrack.
+    const trackedUserId = useStateFromStores(
+        [SelectedChannelStore, ChannelStore],
+        () => getTrackedDmUserId()
     );
-});
+    void whitelistedIds;
 
-function OpenStalkerButton() {
+    if (!showToolbarIcon) return null;
+    if (toolbarOnlyTrackedUsers && !trackedUserId) return null;
+
+    const isUserScoped = !!trackedUserId;
+    const user = isUserScoped ? UserStore.getUser(trackedUserId!) : null;
+    const displayName =
+        (user as any)?.globalName
+        || (user as any)?.global_name
+        || user?.username
+        || "user";
+    const tooltip = isUserScoped
+        ? `Presence History — ${displayName}`
+        : "Activity History";
+
     return (
-        <HeaderBarIcon
-            className="stalker-toolbox-btn"
-            onClick={() => openPresenceHistoryModal()}
-            tooltip={"Activity Tracker"}
-            icon={StalkerIcon}
+        <ChannelToolbarButton
+            icon={isUserScoped ? ToolbarEyeUserIcon : ToolbarEyeIcon}
+            tooltip={tooltip}
+            aria-label={tooltip}
+            onClick={() => openPresenceHistoryModal(trackedUserId ?? undefined)}
         />
     );
-}
+}, { noop: true });
 
 function getClientStatusSnapshot(userId: string) {
     const stateStatuses = (PresenceStore as any)?.getState?.()?.clientStatuses?.[userId];
@@ -143,7 +189,14 @@ export default definePlugin({
     name: "Activity Tracker",
     description: "Advanced user presence and activity monitoring plugin that logs presence changes, profile updates, and status updates. Track when users change their status, monitor profile edits, view historical activity trends, and receive customizable notifications for selected users.",
     authors: [{ id: 534759293065625620n, name: "Ondra_D" }],
+    dependencies: ["HeaderBarAPI"],
     settings,
+    headerBarButton: {
+        icon: ToolbarEyeIcon,
+        location: "channeltoolbar" as const,
+        priority: 10,
+        render: () => <OpenHistoryToolbarButton />
+    },
     patches: [
         {
             find: ".connections,userId:",
@@ -631,37 +684,6 @@ export default definePlugin({
             }
         }
     },
-    addIconToToolBar(e: { toolbar: any; }) {
-        if (Array.isArray(e.toolbar))
-            return e.toolbar.unshift(
-                <ErrorBoundary noop={true}>
-                    <OpenStalkerButton />
-                </ErrorBoundary>
-            );
-
-        e.toolbar = [
-            <ErrorBoundary noop={true} key="stalker-button">
-                <OpenStalkerButton />
-            </ErrorBoundary>,
-            e.toolbar,
-        ];
-    },
-    TrailingWrapper({ children }: any) {
-        try {
-
-            return (
-                <>
-                    {children}
-                    <ErrorBoundary noop>
-                        <OpenStalkerButton />
-                    </ErrorBoundary>
-                </>
-            );
-        } catch (e) {
-            logger.error("Failed to render trailing wrapper for Stalker button", e);
-            return children;
-        }
-    },
     presenceListener: null as any,
     presencePrimed: false,
     async start() {
@@ -965,16 +987,18 @@ const contextMenuPatch: NavContextMenuPatchCallback = (children, props) => {
             <Menu.MenuItem
                 key="stalker-item"
                 id="stalker-v1"
-                label={isWhitelisted ? "Stop Tracking User" : "Track User"}
+                label={isWhitelisted ? "Stop Tracking" : "Track User"}
+                icon={isWhitelisted ? EyeOffIcon : EyeIcon}
                 action={() => isWhitelisted ? unStalkUser(userId) : stalkUser(userId)}
-            />
+            />,
         ];
 
         if (isWhitelisted) {
             menuItems.push(
                 <Menu.MenuItem
                     id="stalker-view-log"
-                    label="View Presence History"
+                    label="Presence History"
+                    icon={CtxHistoryIcon}
                     action={() => openPresenceHistoryModal(userId)}
                 />
             );

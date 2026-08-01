@@ -1,28 +1,19 @@
 
-/* ── Toolbox / floating ─────────────────────────────────────────── */
-
-.stalker-toolbox-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    padding: 4px;
-    box-sizing: border-box;
-    color: var(--text-normal, #ddd);
-    border-radius: 8px;
-    transition: background 0.15s ease, color 0.15s ease;
+/* ── Channel toolbar eye (same tokens as call / pin / etc.) ─────── */
+/*
+ * Discord styles toolbar icons as:
+ *   .clickable .icon { color: var(--icon-muted); }
+ *   .clickable:hover .icon { color: var(--interactive-icon-hover) / icon-subtle }
+ * ChannelToolbarButton already applies those classes; paths use fill=currentColor.
+ * These rules only reinforce the same tokens if a theme remaps them.
+ */
+.stalker-toolbar-eye {
+    color: var(--icon-muted);
 }
 
-.stalker-toolbox-btn svg {
-    width: 20px;
-    height: 20px;
-    display: block;
-}
-
-.stalker-toolbox-btn:hover {
-    background: var(--background-modifier-hover);
-    color: var(--interactive-hover, #fff);
+[class*="clickable"]:hover .stalker-toolbar-eye,
+[class*="clickable"][class*="selected"] .stalker-toolbar-eye {
+    color: var(--interactive-icon-hover, var(--icon-subtle, var(--icon-default)));
 }
 
 .stalker-dom-btn {
@@ -2254,7 +2245,6 @@
 .theme-dark .stalker-log-entry__header-name *,
 .theme-dark .stalker-overview-stat-value,
 .theme-dark .stalker-overview-text,
-.theme-dark .stalker-toolbox-btn,
 .theme-dark .stalker-number-input,
 .theme-dark .stalker-overview-card-header,
 .theme-dark .stalker-sidebar-item,
