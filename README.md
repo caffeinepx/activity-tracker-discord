@@ -2,7 +2,7 @@
 
 A Vencord / Equicord custom plugin that logs presence, activity, and profile changes for selected users.
 
-Forked from [Ondra-D/vencord-activity-tracker](https://github.com/Ondra-D/vencord-activity-tracker/). All credit for the original plugin goes to Ondra_D — this fork builds on that work with UI and QoL improvements.
+Forked from [Ondra-D/vencord-activity-tracker](https://github.com/Ondra-D/vencord-activity-tracker/). All credit for the original plugin goes to Ondra_D. This fork builds on that work with UI and QoL improvements.
 
 **This fork:** https://github.com/caffeinepx/activity-tracker-discord
 
