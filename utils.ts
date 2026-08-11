@@ -90,9 +90,47 @@ export function getStatusLabel(status?: string | null) {
     }
 }
 
+/** Screenshot-mode display name (redact → "User"; blur/blackout keep layout string) */
+export function redactDisplayName(
+    username: string | undefined | null,
+    mode: "redact" | "blur" | "blackout",
+    enabled: boolean
+) {
+    if (!enabled) return username || "Unknown";
+    if (mode === "redact") return "User";
+    return username || "Unknown";
+}
+
+/** Screenshot-mode @tag */
+export function redactTag(
+    username: string | undefined | null,
+    mode: "redact" | "blur" | "blackout",
+    enabled: boolean
+) {
+    if (!enabled) return username ? `@${username}` : "";
+    if (mode === "redact") return "@user";
+    return username ? `@${username}` : "";
+}
+
+/** Visible text for blur/blackout pills (avoids leaking real name via selection) */
+export function redactMask(text: string, isTag = false) {
+    return isTag ? "@········" : "········";
+}
+
 export function getStatusClass(status?: string | null) {
     const normalized = status?.toLowerCase() ?? "unknown";
     return `stalker-status-badge stalker-status-badge--${normalized}`;
+}
+
+export function getPlatformLabel(device?: string | null) {
+    switch ((device ?? "").toLowerCase()) {
+        case "desktop": return "Desktop";
+        case "mobile": return "Mobile";
+        case "web": return "Web";
+        case "embedded": return "Console";
+        case "console": return "Console";
+        default: return device ? device.charAt(0).toUpperCase() + device.slice(1) : "Unknown";
+    }
 }
 
 function normalizeStatus(status?: string | null) {
@@ -102,6 +140,193 @@ function normalizeStatus(status?: string | null) {
 function isOfflineStatus(status?: string | null) {
     const s = normalizeStatus(status);
     return !s || s === "offline" || s === "invisible";
+}
+
+const PLATFORM_KEYS = ["desktop", "mobile", "web", "embedded"] as const;
+
+export type PlatformChange = {
+    device: string;
+    previousStatus: string;
+    currentStatus: string;
+};
+
+/**
+ * Diff two client-status maps into per-platform transitions.
+ * Missing keys are treated as offline.
+ */
+export function diffClientStatuses(
+    previous?: Record<string, string> | null,
+    current?: Record<string, string> | null
+): PlatformChange[] {
+    const prev = previous ?? {};
+    const curr = current ?? {};
+    const keys = new Set<string>([
+        ...PLATFORM_KEYS,
+        ...Object.keys(prev),
+        ...Object.keys(curr),
+    ]);
+
+    const changes: PlatformChange[] = [];
+    for (const device of keys) {
+        const previousStatus = normalizeStatus(prev[device]) || "offline";
+        const currentStatus = normalizeStatus(curr[device]) || "offline";
+        // Treat invisible as offline for platform diffs
+        const prevNorm = previousStatus === "invisible" ? "offline" : previousStatus;
+        const currNorm = currentStatus === "invisible" ? "offline" : currentStatus;
+        if (prevNorm === currNorm) continue;
+        // Skip both-offline (nothing useful)
+        if (prevNorm === "offline" && currNorm === "offline") continue;
+        changes.push({
+            device,
+            previousStatus: prevNorm,
+            currentStatus: currNorm,
+        });
+    }
+    return changes;
+}
+
+/** Human list of still-active platforms, e.g. "Desktop still Online, Web still Idle" */
+export function formatStillActivePlatforms(
+    clientStatus?: Record<string, string> | null,
+    excludeDevices?: string[]
+): string | undefined {
+    if (!clientStatus) return undefined;
+    const exclude = new Set((excludeDevices ?? []).map(d => d.toLowerCase()));
+    const parts: string[] = [];
+    for (const [device, status] of Object.entries(clientStatus)) {
+        if (exclude.has(device.toLowerCase())) continue;
+        const s = normalizeStatus(status);
+        if (!s || s === "offline" || s === "invisible") continue;
+        parts.push(`${getPlatformLabel(device)} still ${getStatusLabel(s)}`);
+    }
+    return parts.length ? parts.join(" · ") : undefined;
+}
+
+/** Build title/body for a presence notification from overall + platform changes */
+export function buildPresenceNotifyCopy(opts: {
+    username: string;
+    previousStatus?: string | null;
+    currentStatus?: string | null;
+    platformChanges?: PlatformChange[];
+    clientStatus?: Record<string, string> | null;
+    onlineDuration?: number;
+    offlineDuration?: number;
+    activitySummary?: string;
+    potentiallyInvisible?: boolean;
+}): { title: string; body: string } {
+    const {
+        username,
+        previousStatus,
+        currentStatus,
+        platformChanges = [],
+        clientStatus,
+        onlineDuration,
+        offlineDuration,
+        activitySummary,
+        potentiallyInvisible,
+    } = opts;
+
+    if (potentiallyInvisible) {
+        let body = "⚠️ Potentially invisible — Online → Offline on mobile without Idle (Discord mobile normally idles first)";
+        if (onlineDuration) body += ` · was online ${getDurationLabel(onlineDuration)}`;
+        return { title: `${username} may be invisible`, body };
+    }
+
+    // Prefer platform-scoped messaging when we know which devices flipped
+    if (platformChanges.length > 0) {
+        const primary = platformChanges[0];
+        const plat = getPlatformLabel(primary.device);
+        const to = getStatusLabel(primary.currentStatus);
+        const from = getStatusLabel(primary.previousStatus);
+
+        let title: string;
+        if (primary.currentStatus === "offline") {
+            title = `${username} went Offline on ${plat}`;
+        } else if (primary.previousStatus === "offline") {
+            title = `${username} is ${to} on ${plat}`;
+        } else {
+            title = `${username} is ${to} on ${plat}`;
+        }
+
+        const bodyParts: string[] = [];
+        if (platformChanges.length === 1) {
+            bodyParts.push(`${plat}: ${from} → ${to}`);
+        } else {
+            for (const c of platformChanges) {
+                bodyParts.push(
+                    `${getPlatformLabel(c.device)}: ${getStatusLabel(c.previousStatus)} → ${getStatusLabel(c.currentStatus)}`
+                );
+            }
+        }
+
+        const still = formatStillActivePlatforms(
+            clientStatus,
+            platformChanges.map(c => c.device)
+        );
+        if (still) bodyParts.push(still);
+
+        const overall = normalizeStatus(currentStatus);
+        if (isOfflineStatus(overall) && onlineDuration) {
+            bodyParts.push(`Session online ${getDurationLabel(onlineDuration)}`);
+        } else if (!isOfflineStatus(overall) && offlineDuration && primary.previousStatus === "offline") {
+            bodyParts.push(`Was offline ${getDurationLabel(offlineDuration)}`);
+        }
+
+        if (activitySummary && activitySummary !== "typing" && !activitySummary.startsWith("profile:")) {
+            bodyParts.push(activitySummary);
+        }
+
+        // Multi-platform flip: expand title slightly
+        if (platformChanges.length > 1) {
+            title = `${username} presence updated`;
+        }
+
+        return { title, body: bodyParts.join(" · ") };
+    }
+
+    // Overall-only fallback
+    const statusLabel = getStatusLabel(currentStatus);
+    let title = `${username} is ${statusLabel}`;
+    let body = `Status changed to ${statusLabel}`;
+    if (previousStatus) {
+        body = `${getStatusLabel(previousStatus)} → ${statusLabel}`;
+    }
+    if (offlineDuration && !isOfflineStatus(currentStatus)) {
+        body += ` (was offline for ${getDurationLabel(offlineDuration)})`;
+    }
+    if (onlineDuration && isOfflineStatus(currentStatus)) {
+        body += ` (was online for ${getDurationLabel(onlineDuration)})`;
+    }
+    if (clientStatus) {
+        const summary = Object.entries(clientStatus)
+            .filter(([, s]) => s && !isOfflineStatus(s))
+            .map(([d, s]) => `${getPlatformLabel(d)} ${getStatusLabel(s)}`)
+            .join(" · ");
+        if (summary) body += ` · ${summary}`;
+    }
+    if (activitySummary && activitySummary !== "typing" && !activitySummary.startsWith("profile:")) {
+        body += ` · ${activitySummary}`;
+    }
+    return { title, body };
+}
+
+/** Whether a status should fire notifyOnline / Offline / Idle / Dnd toggles */
+export function statusMatchesNotifyToggle(
+    status: string | null | undefined,
+    config: {
+        notifyOnline?: boolean;
+        notifyOffline?: boolean;
+        notifyIdle?: boolean;
+        notifyDnd?: boolean;
+    }
+): boolean {
+    const s = normalizeStatus(status);
+    if (s === "online") return config.notifyOnline !== false;
+    if (s === "offline" || s === "invisible") return config.notifyOffline !== false;
+    if (s === "idle") return config.notifyIdle !== false;
+    if (s === "dnd") return config.notifyDnd !== false;
+    // Unknown statuses: allow
+    return true;
 }
 
 /**

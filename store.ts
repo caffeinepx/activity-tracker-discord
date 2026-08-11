@@ -8,7 +8,13 @@ import { UserStore } from "@webpack/common";
 
 import { getRetentionCutoffMs, getWhitelistedIds } from "./settings";
 import { PresenceLogEntry, ProfileSnapshot, UserStalkerConfig } from "./types";
-import { formatTimestamp, getDurationLabel, logger } from "./utils";
+import {
+    buildPresenceNotifyCopy,
+    formatTimestamp,
+    getDurationLabel,
+    logger,
+    statusMatchesNotifyToggle,
+} from "./utils";
 
 /** Always resolve at call time — native helpers may not exist yet when the module first loads. */
 export function getNativeHelper(): PluginNative<typeof import("./native")> | null {
@@ -219,46 +225,53 @@ export function addPresenceLog(entry: PresenceLogEntry & { activitySummary?: str
     if (entry.clientStatusSummary) parts.push(`Clients: ${entry.clientStatusSummary}`);
     if (entry.potentiallyInvisible) parts.push("⚠️ POTENTIALLY INVISIBLE (mobile online → offline, skipped idle)");
 
+    if (entry.platformChanges?.length) {
+        parts.push(
+            `Platforms: ${entry.platformChanges
+                .map(c => `${c.device} ${c.previousStatus}→${c.currentStatus}`)
+                .join(", ")}`
+        );
+    }
     logger.info(parts.join(" | "));
     appendUserLog(entry.userId, entry, cutoffMs).catch(e => logger.error("Failed to save log entry", e));
-    if (entry.type === "presence" && entry.previousStatus !== entry.currentStatus) {
+
+    // Notify on overall status change OR per-platform flips (even when overall stays Online)
+    const platformChanges = entry.platformChanges ?? [];
+    const overallStatusChanged =
+        entry.previousStatus != null
+        && entry.previousStatus !== entry.currentStatus;
+    // Avoid false "became Online" notifs when previousStatus was omitted on device-only logs
+    const hasPresenceSignal = overallStatusChanged || platformChanges.length > 0 || !!entry.potentiallyInvisible;
+
+    if (entry.type === "presence" && hasPresenceSignal) {
         const userConfig = getUserConfig(entry.userId);
         if (userConfig.notifyPresenceChanges) {
             let shouldNotify = false;
-            const currentStatus = entry.currentStatus?.toLowerCase();
 
-            if (currentStatus === "online" && userConfig.notifyOnline !== false) shouldNotify = true;
-            else if (currentStatus === "offline" && userConfig.notifyOffline !== false) shouldNotify = true;
-            else if (currentStatus === "idle" && userConfig.notifyIdle !== false) shouldNotify = true;
-            else if (currentStatus === "dnd" && userConfig.notifyDnd !== false) shouldNotify = true;
-            else if (!["online", "offline", "idle", "dnd"].includes(currentStatus || "")) shouldNotify = true; // fallback for unknown statuses
-
-            // Potentially-invisible jumps get their own notify toggle (defaults on)
             if (entry.potentiallyInvisible && userConfig.notifyPotentiallyInvisible !== false) {
                 shouldNotify = true;
+            } else if (platformChanges.length > 0) {
+                // Fire if ANY changed platform's new status matches a notify toggle
+                shouldNotify = platformChanges.some(c =>
+                    statusMatchesNotifyToggle(c.currentStatus, userConfig)
+                );
+            } else if (overallStatusChanged) {
+                shouldNotify = statusMatchesNotifyToggle(entry.currentStatus, userConfig);
             }
 
             if (shouldNotify) {
                 try {
-                    const statusLabel = entry.currentStatus ? entry.currentStatus.charAt(0).toUpperCase() + entry.currentStatus.slice(1) : "Unknown";
-                    let title = `${entry.username} is ${statusLabel}`;
-                    let body = `Status changed to ${statusLabel}`;
-
-                    if (entry.potentiallyInvisible) {
-                        title = `${entry.username} may be invisible`;
-                        body = `⚠️ Potentially invisible — went Online → Offline on mobile without Idle (Discord mobile normally idles first)`;
-                        if (entry.onlineDuration) {
-                            body += ` · was online ${getDurationLabel(entry.onlineDuration)}`;
-                        }
-                    } else {
-                        if (entry.offlineDuration && entry.currentStatus !== "offline") {
-                            body += ` (was offline for ${getDurationLabel(entry.offlineDuration)})`;
-                        }
-
-                        if (entry.activitySummary && entry.activitySummary !== "typing" && !entry.activitySummary.startsWith("profile:")) {
-                            body += ` - ${entry.activitySummary}`;
-                        }
-                    }
+                    const { title, body } = buildPresenceNotifyCopy({
+                        username: entry.username,
+                        previousStatus: entry.previousStatus,
+                        currentStatus: entry.currentStatus,
+                        platformChanges,
+                        clientStatus: entry.clientStatus,
+                        onlineDuration: entry.onlineDuration,
+                        offlineDuration: entry.offlineDuration,
+                        activitySummary: entry.activitySummary,
+                        potentiallyInvisible: entry.potentiallyInvisible,
+                    });
 
                     let icon: string | undefined;
                     try {
@@ -268,12 +281,8 @@ export function addPresenceLog(entry: PresenceLogEntry & { activitySummary?: str
                         }
                     } catch { /* ignore */ }
 
-                    showNotification({
-                        title,
-                        body,
-                        icon
-                    });
-                } catch (e) {  }
+                    showNotification({ title, body, icon });
+                } catch { /* ignore notify errors */ }
             }
         }
     }

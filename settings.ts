@@ -9,6 +9,14 @@ export const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export type ScreenshotRedactMode = "redact" | "blur" | "blackout";
 
+/**
+ * UI presentation mode:
+ * - custom: Full custom island UI + plugin palette (default)
+ * - customThemed: Same layout/chrome, colors follow Discord/client theme
+ * - native: Flat Discord-native modal (no custom islands/mica)
+ */
+export type UiMode = "custom" | "customThemed" | "native";
+
 export const settings = definePluginSettings({
     whitelistedIds: {
         default: "",
@@ -28,6 +36,26 @@ export const settings = definePluginSettings({
             { label: "Redact (default avatar + @user)", value: "redact", default: true },
             { label: "Blur", value: "blur" },
             { label: "Black out", value: "blackout" },
+        ]
+    },
+    uiMode: {
+        default: "custom" as UiMode,
+        type: OptionType.SELECT,
+        description: "History / settings UI style",
+        options: [
+            {
+                label: "Full custom UI (plugin colors)",
+                value: "custom",
+                default: true,
+            },
+            {
+                label: "Custom UI + theme colors",
+                value: "customThemed",
+            },
+            {
+                label: "Full theme compatibility (Discord-native UI)",
+                value: "native",
+            },
         ]
     },
     showToolbarIcon: {
@@ -72,5 +100,23 @@ export function getRetentionCutoffMs() {
 
 export function isDebugEnabled() {
     return settings.store.debug;
+}
+
+export function getUiMode(): UiMode {
+    const mode = settings.store.uiMode as UiMode;
+    if (mode === "customThemed" || mode === "native" || mode === "custom") return mode;
+    return "custom";
+}
+
+/** CSS class applied to history/settings modal roots */
+export function getUiModeClass(mode?: UiMode): string {
+    switch (mode ?? getUiMode()) {
+        case "customThemed":
+            return "stalker-ui-custom-themed";
+        case "native":
+            return "stalker-ui-native";
+        default:
+            return "stalker-ui-custom";
+    }
 }
 

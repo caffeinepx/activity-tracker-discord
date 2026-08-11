@@ -3,6 +3,7 @@
 
 
 import "./styles.css";
+import "./styles-ui-modes.css";
 
 import { addContextMenuPatch, NavContextMenuPatchCallback, removeContextMenuPatch } from "@api/ContextMenu";
 import { ChannelToolbarButton } from "@api/HeaderBar";
@@ -47,9 +48,11 @@ import {
     updateDeviceTimings
 } from "./store";
 import { ProfileChanges, ProfileSnapshot } from "./types";
+import type { PlatformDuration, PlatformStatusChange } from "./types";
 import {
     addToWhitelist,
     activitiesSnapshotsEqual,
+    diffClientStatuses,
     formatActivitySummary,
     getActivitySnapshots,
     getDurationLabel,
@@ -849,29 +852,64 @@ export default definePlugin({
 
                         const isOnline = (status: string | null) => status && !["offline", "invisible"].includes(status?.toLowerCase() ?? "");
 
+                        // Per-platform flips (mobile online while desktop already online, etc.)
+                        const rawPlatformChanges = diffClientStatuses(previousClientStatus, currentClientStatus);
+                        const platformChanges: PlatformStatusChange[] = rawPlatformChanges.map(c => {
+                            // Attach how long previous status lasted on this device from deviceTimings
+                            const ended = deviceTimings.find(
+                                (t: any) => t.device === c.device && t.end === now && (t.status ?? "").toLowerCase() === c.previousStatus
+                            );
+                            const previousDurationMs = ended?.start ? now - ended.start : undefined;
+                            return { ...c, previousDurationMs };
+                        });
+
+                        // Chips: ended segments + ongoing segments on other platforms (for context)
+                        const platformDurations: PlatformDuration[] = [];
+                        for (const change of platformChanges) {
+                            if (change.previousDurationMs != null && change.previousDurationMs > 0) {
+                                platformDurations.push({
+                                    device: change.device,
+                                    status: change.previousStatus,
+                                    durationMs: change.previousDurationMs,
+                                    ongoing: false,
+                                });
+                            }
+                        }
+                        // Also surface ongoing durations on platforms that didn't flip this tick
+                        // (helps answer "where is the Online 2h from?")
+                        for (const timing of deviceTimings) {
+                            if (timing.end != null) continue;
+                            const st = (timing.status ?? "").toLowerCase();
+                            if (!st || st === "offline" || st === "invisible") continue;
+                            if (platformChanges.some(c => c.device === timing.device)) continue;
+                            if (!timing.start) continue;
+                            const dur = now - timing.start;
+                            if (dur <= 0) continue;
+                            platformDurations.push({
+                                device: timing.device,
+                                status: st,
+                                durationMs: dur,
+                                ongoing: true,
+                            });
+                        }
+
+                        // Overall session durations only on overall online/offline boundary
+                        // (do NOT stamp cumulative "Online 2h" on every platform-only flip)
                         if (statusChanged) {
                             if (isOnline(currentStatus)) {
                                 if (!isOnline(previousStatus)) {
                                     const lastOffline = lastOfflineTimestamps.get(userId);
                                     if (lastOffline) offlineDuration = now - lastOffline;
+                                    lastOnlineTimestamps.set(userId, now);
                                 }
-                                lastOnlineTimestamps.set(userId, now);
                             } else if (!isOnline(currentStatus)) {
-                                const lastOnline = lastOnlineTimestamps.get(userId);
-                                if (lastOnline) onlineDuration = now - lastOnline;
-                                persistLastOfflineTimestamp(userId, now);
+                                if (isOnline(previousStatus)) {
+                                    const lastOnline = lastOnlineTimestamps.get(userId);
+                                    if (lastOnline) onlineDuration = now - lastOnline;
+                                    persistLastOfflineTimestamp(userId, now);
+                                }
                             }
-                        }
 
-                        if (isOnline(currentStatus)) {
-                            const lastOnline = lastOnlineTimestamps.get(userId);
-                            if (lastOnline) onlineDuration = now - lastOnline;
-                        } else {
-                            const lastOffline = lastOfflineTimestamps.get(userId);
-                            if (lastOffline) offlineDuration = now - lastOffline;
-                        }
-
-                        if (statusChanged) {
                             offlineDuration ? offlineDurations.set(userId, offlineDuration) : offlineDurations.delete(userId);
                             onlineDuration ? onlineDurations.set(userId, onlineDuration) : onlineDurations.delete(userId);
                         }
@@ -897,10 +935,15 @@ export default definePlugin({
                                 username: user.username,
                                 discriminator: user.discriminator,
                                 timestamp: now,
-                                previousStatus: statusChanged ? previousStatus : undefined,
+                                // Keep overall prev/curr always when either overall or platform changed
+                                // so logs stay readable; undefined previousStatus only for pure activity
+                                previousStatus: (statusChanged || platformChanges.length > 0)
+                                    ? previousStatus
+                                    : undefined,
                                 currentStatus,
                                 guildId: undefined,
                                 clientStatus: clientStatusMap,
+                                previousClientStatus: previousClientStatus ?? undefined,
                                 activitySummary,
                                 clientStatusSummary,
                                 guildName: null,
@@ -909,8 +952,10 @@ export default definePlugin({
                                 activities: activitySnapshot,
                                 type: "presence" as const,
                                 deviceTimings,
-                                deviceChange,
+                                deviceChange: deviceChange || platformChanges.length > 0,
                                 activityChange: activitiesChanged,
+                                platformChanges: platformChanges.length > 0 ? platformChanges : undefined,
+                                platformDurations: platformDurations.length > 0 ? platformDurations : undefined,
                                 potentiallyInvisible: potentiallyInvisible || undefined
                             };
 

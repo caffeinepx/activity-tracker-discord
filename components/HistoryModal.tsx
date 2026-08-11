@@ -4,10 +4,21 @@ import { Button } from "@components/Button";
 import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalProps, ModalRoot, ModalSize, openModal } from "@utils/modal";
 import { GuildStore, NavigationRouter, PresenceStore, ScrollerThin, Text, Tooltip, useEffect, useMemo, UserStore, useState } from "@webpack/common";
 
-import { getScreenshotRedactMode, isDebugEnabled, settings, type ScreenshotRedactMode } from "../settings";
+import { getScreenshotRedactMode, getUiModeClass, isDebugEnabled, settings, type ScreenshotRedactMode } from "../settings";
 import { clearProfileSnapshots, deleteUserLogs, getNativeHelper, isDesktopEnv, loadPresenceLogs, presenceLogListeners, presenceLogs } from "../store";
 import { PresenceLogEntry } from "../types";
-import { formatTimestamp, getDurationLabel, getStatusClass, getStatusLabel, logger } from "../utils";
+import {
+    formatTimestamp,
+    getDurationLabel,
+    getPlatformLabel,
+    getStatusClass,
+    getStatusLabel,
+    logger,
+    redactDisplayName,
+    redactMask,
+    redactTag,
+} from "../utils";
+import { ActivityInsightsPanel } from "./ActivityTimeline";
 import { renderPresenceActivitySummary } from "./ActivityBadges";
 import { DeviceBadges, DeviceIcons, HistoryIcon, ProfileIcon, ActivityIcon, MessageIcon, PresenceIcon, WarningIcon } from "./Icons";
 import { renderProfileChangeBadges } from "./ProfileCard";
@@ -39,18 +50,6 @@ function defaultDiscordAvatarUrl(userId?: string) {
     return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
 }
 
-function redactDisplayName(username: string | undefined | null, mode: ScreenshotRedactMode, enabled: boolean) {
-    if (!enabled) return username || "Unknown";
-    if (mode === "redact") return "User";
-    return username || "Unknown";
-}
-
-function redactTag(username: string | undefined | null, mode: ScreenshotRedactMode, enabled: boolean) {
-    if (!enabled) return username ? `@${username}` : "";
-    if (mode === "redact") return "@user";
-    return username ? `@${username}` : "";
-}
-
 const SECTIONS: { id: SectionId; label: string; icon: () => React.ReactNode; description: string }[] = [
     { id: "presence", label: "Presence", icon: PresenceIcon, description: "Status & platform changes" },
     { id: "profile", label: "Profile", icon: ProfileIcon, description: "Avatar, bio & name edits" },
@@ -58,11 +57,154 @@ const SECTIONS: { id: SectionId; label: string; icon: () => React.ReactNode; des
     { id: "rich", label: "Activity", icon: ActivityIcon, description: "Games & rich presence" },
 ];
 
+function isOffStatus(s?: string | null) {
+    const v = (s ?? "").toLowerCase();
+    return !v || v === "offline" || v === "invisible";
+}
+
+function chipClassForStatus(status: string) {
+    const statusKey = (status ?? "online").toLowerCase();
+    if (statusKey === "offline" || statusKey === "invisible") return "stalker-meta-chip--offline";
+    if (statusKey === "idle") return "stalker-meta-chip--idle";
+    if (statusKey === "dnd") return "stalker-meta-chip--dnd";
+    return "stalker-meta-chip--online";
+}
+
 function renderDeviceBadges(entry: PresenceLogEntry) {
     const clientStatus = (entry as any).clientStatus as Record<string, string> | undefined;
     const deviceTimings = (entry as any).deviceTimings as Array<{ device: string; status: string; start: number; end?: number | null }> | undefined;
     if (!clientStatus && !deviceTimings) return null;
     return <DeviceBadges clientStatus={clientStatus} deviceTimings={deviceTimings} entryTimestamp={entry.timestamp} showAll />;
+}
+
+type DurationChip = {
+    key: string;
+    device?: string;
+    status: string;
+    durationMs: number;
+    ongoing?: boolean;
+};
+
+/**
+ * Build platform-specific duration chips (e.g. "Mobile Online 2h 14m").
+ * Prefer real per-platform data over a vague "Session Online" label.
+ */
+function getPresenceDurationChips(entry: PresenceLogEntry): DurationChip[] {
+    const chips: DurationChip[] = [];
+    const seen = new Set<string>();
+
+    const push = (chip: DurationChip) => {
+        if (!chip.durationMs || chip.durationMs <= 0) return;
+        if (seen.has(chip.key)) return;
+        seen.add(chip.key);
+        chips.push(chip);
+    };
+
+    // 1) Explicit platformDurations from logger
+    if (Array.isArray(entry.platformDurations)) {
+        for (const pd of entry.platformDurations) {
+            push({
+                key: `pd-${pd.device}-${pd.status}-${pd.ongoing ? "on" : "off"}`,
+                device: pd.device,
+                status: pd.status || "online",
+                durationMs: pd.durationMs,
+                ongoing: pd.ongoing,
+            });
+        }
+    }
+
+    // 2) platformChanges with previousDurationMs
+    if (Array.isArray(entry.platformChanges)) {
+        for (const c of entry.platformChanges) {
+            if (c.previousDurationMs != null && c.previousDurationMs > 0 && !isOffStatus(c.previousStatus)) {
+                push({
+                    key: `pc-${c.device}-${c.previousStatus}`,
+                    device: c.device,
+                    status: c.previousStatus || "online",
+                    durationMs: c.previousDurationMs,
+                });
+            }
+        }
+    }
+
+    // 3) Derive from deviceTimings at this event
+    const timings = entry.deviceTimings;
+    if (Array.isArray(timings) && timings.length > 0) {
+        for (const t of timings) {
+            if (t.end === entry.timestamp && t.start != null && !isOffStatus(t.status)) {
+                push({
+                    key: `dt-end-${t.device}-${t.status}`,
+                    device: t.device,
+                    status: t.status || "online",
+                    durationMs: entry.timestamp - t.start,
+                });
+            }
+            if (t.end == null && t.start != null && !isOffStatus(t.status)) {
+                push({
+                    key: `dt-on-${t.device}-${t.status}`,
+                    device: t.device,
+                    status: t.status,
+                    durationMs: entry.timestamp - t.start,
+                    ongoing: true,
+                });
+            }
+        }
+    }
+
+    if (chips.length > 0) return chips;
+
+    // 4) Fall back: attribute onlineDuration to a platform when we can
+    const change = entry.platformChanges?.[0];
+    const changedDevice =
+        change?.device
+        ?? (Array.isArray(timings)
+            ? timings.find(t => t.start === entry.timestamp || t.end === entry.timestamp)?.device
+            : undefined);
+
+    if (entry.onlineDuration != null && entry.onlineDuration > 0) {
+        // If the platform that flipped was present before, duration belongs to that platform/status
+        if (change && !isOffStatus(change.previousStatus)) {
+            push({
+                key: `fb-${change.device}-${change.previousStatus}`,
+                device: change.device,
+                status: change.previousStatus,
+                durationMs: entry.onlineDuration,
+            });
+        } else {
+            // Otherwise pick an active platform from clientStatus (e.g. Desktop still Online)
+            const active = entry.clientStatus
+                ? Object.entries(entry.clientStatus).find(([, s]) => !isOffStatus(s))
+                : undefined;
+            if (active) {
+                push({
+                    key: `fb-active-${active[0]}-${active[1]}`,
+                    device: active[0],
+                    status: active[1],
+                    durationMs: entry.onlineDuration,
+                    ongoing: true,
+                });
+            } else if (changedDevice) {
+                push({
+                    key: `fb-dev-${changedDevice}`,
+                    device: changedDevice,
+                    status: "online",
+                    durationMs: entry.onlineDuration,
+                });
+            }
+            // No generic "Session Online" chip — if we can't name a platform, skip
+        }
+    }
+
+    if (entry.offlineDuration != null && entry.offlineDuration > 0) {
+        push({
+            key: `fb-offline-${changedDevice ?? "all"}`,
+            device: changedDevice,
+            status: "offline",
+            durationMs: entry.offlineDuration,
+        });
+    }
+
+    return chips;
 }
 
 function renderPresenceStatuses(entry: PresenceLogEntry) {
@@ -193,9 +335,8 @@ function IdentityName({
         const display = text.startsWith("@") ? "@user" : "User";
         return <span className={className} style={style}>{display}</span>;
     }
-    // blur / blackout: keep real text for layout width, hide via CSS pill
-    // Use a fixed-width redaction string so real name never leaks via selection/copy as easily
-    const mask = text.startsWith("@") ? "@········" : "········";
+    // blur / blackout: fixed mask so real name never leaks via selection/copy
+    const mask = redactMask(text, text.startsWith("@"));
     return (
         <span
             className={`${className ?? ""} stalker-ss-text stalker-ss-text--${redactMode}`.trim()}
@@ -306,6 +447,8 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
     const [redactMode, setRedactMode] = useState<ScreenshotRedactMode>(() => getScreenshotRedactMode());
     const [showSsMenu, setShowSsMenu] = useState(false);
     const filterUserId = initialUserId ?? null;
+    const { uiMode } = settings.use(["uiMode"]);
+    const uiModeClass = getUiModeClass(uiMode as any);
 
     const setRedactModePersist = (mode: ScreenshotRedactMode) => {
         setRedactMode(mode);
@@ -326,6 +469,8 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
     const [selectedSection, setSelectedSection] = useState<SectionId>("presence");
     const [dayOffset, setDayOffset] = useState(0);
     const [platformFilter, setPlatformFilter] = useState<"all" | "desktop" | "mobile" | "web">("all");
+    /** logs = feed · insights = day timeline + stats */
+    const [mainView, setMainView] = useState<"logs" | "insights">("logs");
 
     const dayRange = useMemo(() => {
         const start = new Date();
@@ -569,18 +714,27 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
                         })()}
 
                         <div className="stalker-log-entry__meta">
-                            {entry.offlineDuration != null && entry.offlineDuration > 0 && (
-                                <span className="stalker-meta-chip stalker-meta-chip--offline">
-                                    Offline {getDurationLabel(entry.offlineDuration)}
-                                </span>
-                            )}
-                            {entry.onlineDuration != null && entry.onlineDuration > 0 && (
-                                <span className="stalker-meta-chip stalker-meta-chip--online">
-                                    Online {getDurationLabel(entry.onlineDuration)}
-                                </span>
-                            )}
+                            {selectedSection === "presence" && getPresenceDurationChips(entry).map(chip => {
+                                const label = getDurationLabel(chip.durationMs);
+                                if (!label) return null;
+                                const plat = chip.device ? getPlatformLabel(chip.device) : null;
+                                // e.g. "Mobile Online 2h 14m" or "Desktop DND 12m · ongoing"
+                                const text = plat
+                                    ? `${plat} ${getStatusLabel(chip.status)} ${label}`
+                                    : `${getStatusLabel(chip.status)} ${label}`;
+                                return (
+                                    <span
+                                        key={chip.key}
+                                        className={`stalker-meta-chip ${chipClassForStatus(chip.status)}${chip.ongoing ? " stalker-meta-chip--ongoing" : ""}`}
+                                        title={chip.ongoing
+                                            ? "Still active on this platform at this time"
+                                            : "How long that status lasted on this platform"}
+                                    >
+                                        {text}{chip.ongoing ? " · ongoing" : ""}
+                                    </span>
+                                );
+                            })}
                             {selectedSection === "rich" && renderPresenceActivitySummary(entry, userLogsMap.get(entry.userId) || [])}
-                            {/* Platform icons only on presence/activity — not useful on messages */}
                             {selectedSection !== "messages" && renderDeviceBadges(entry)}
                             {renderExtra?.(entry)}
                         </div>
@@ -591,7 +745,7 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
     };
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.LARGE} className={cl("root") + " stalker-history-root"}>
+        <ModalRoot {...modalProps} size={ModalSize.LARGE} className={`${cl("root")} stalker-history-root ${uiModeClass}`}>
             <div className="stalker-islands-shell">
                 {/* Header island */}
                 <header className="stalker-island stalker-island--header">
@@ -608,6 +762,23 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
                         </Text>
                     </div>
                     <div className="stalker-modal-head-actions">
+                        <Tooltip text={mainView === "insights" ? "Back to activity log" : "Day timeline & stats"}>
+                            {tooltipProps => (
+                                <button
+                                    {...tooltipProps}
+                                    type="button"
+                                    className={`stalker-icon-btn stalker-insights-toggle${mainView === "insights" ? " stalker-insights-toggle--on" : ""}`}
+                                    onClick={() => setMainView(v => (v === "insights" ? "logs" : "insights"))}
+                                    aria-pressed={mainView === "insights"}
+                                    aria-label="Day timeline and stats"
+                                >
+                                    {/* Chart / timeline icon */}
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M3 3h2v18H3V3zm4 10h2v8H7v-8zm4-6h2v14h-2V7zm4 3h2v11h-2V10zm4-5h2v16h-2V5z" />
+                                    </svg>
+                                </button>
+                            )}
+                        </Tooltip>
                         <div className="stalker-ss-controls">
                             <Tooltip text={screenshotMode ? "Screenshot mode on — identities hidden" : "Screenshot mode — hide PFPs & names"}>
                                 {tooltipProps => (
@@ -668,7 +839,10 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
                                     <button
                                         {...tooltipProps}
                                         className="stalker-icon-btn"
-                                        onClick={() => openUserStalkerSettings(filterUserId, UserStore)}
+                                        onClick={() => openUserStalkerSettings(filterUserId, UserStore, {
+                                            screenshotMode,
+                                            redactMode,
+                                        })}
                                     >
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
@@ -777,9 +951,13 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
                     <div className="stalker-island stalker-island--main">
                         <div className="stalker-main-toolbar">
                             <div className="stalker-main-toolbar__title">
-                                <Text variant="heading-md/semibold">{activeSection.label}</Text>
+                                <Text variant="heading-md/semibold">
+                                    {mainView === "insights" ? "Timeline & Stats" : activeSection.label}
+                                </Text>
                                 <Text variant="text-sm/normal" className="stalker-main-toolbar__desc">
-                                    {activeSection.description}
+                                    {mainView === "insights"
+                                        ? "Day overview — when they were Online / Idle / DND per platform"
+                                        : activeSection.description}
                                 </Text>
                             </div>
 
@@ -801,7 +979,7 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
                             </div>
                         </div>
 
-                        {selectedSection === "presence" && (
+                        {mainView === "logs" && selectedSection === "presence" && (
                             <div className="stalker-platform-filters">
                                 {(["all", "desktop", "mobile", "web"] as const).map(p => {
                                     const Icon = p === "all" ? null : DeviceIcons[p];
@@ -825,6 +1003,16 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
                                 <div className="stalker-empty-state">
                                     <Text variant="text-md/medium">Loading logs…</Text>
                                 </div>
+                            ) : mainView === "insights" ? (
+                                <ActivityInsightsPanel
+                                    userId={filterUserId}
+                                    dayLogs={logsForDay.filter(forUser)}
+                                    dayStart={dayRange.start}
+                                    dayEnd={dayRange.end}
+                                    dayLabel={dayLabel}
+                                    screenshotMode={screenshotMode}
+                                    redactMode={redactMode}
+                                />
                             ) : (
                                 <>
                                     {selectedSection === "presence" && renderLogList(filteredPresenceItems, "No presence updates for this day.")}

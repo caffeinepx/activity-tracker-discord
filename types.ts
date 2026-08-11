@@ -26,6 +26,25 @@ export interface ProfileChanges {
     after: ProfileSnapshot;
 }
 
+/** One platform's status flip (e.g. mobile Online → Idle). */
+export interface PlatformStatusChange {
+    device: string;
+    previousStatus: string;
+    currentStatus: string;
+    /** How long the previous status lasted on this device, if known */
+    previousDurationMs?: number;
+}
+
+/** Duration chip for a platform segment (e.g. Mobile was Online 2h). */
+export interface PlatformDuration {
+    device: string;
+    /** Status the duration applies to (usually the status that just ended, or ongoing) */
+    status: string;
+    durationMs: number;
+    /** True when this segment is still active at log time */
+    ongoing?: boolean;
+}
+
 export interface PresenceLogEntry {
     userId: string;
     username: string;
@@ -35,6 +54,8 @@ export interface PresenceLogEntry {
     currentStatus: PresenceStatus | null;
     guildId?: string;
     clientStatus?: Record<string, string>;
+    /** Snapshot of client statuses before this event (when available) */
+    previousClientStatus?: Record<string, string>;
     activitySummary?: string;
     clientStatusSummary?: string;
     guildName?: string | null;
@@ -50,6 +71,10 @@ export interface PresenceLogEntry {
     deviceTimings?: Array<{ device: string; status: string; start: number; end?: number | null }>;
     deviceChange?: boolean;
     activityChange?: boolean;
+    /** Per-platform status transitions for this event */
+    platformChanges?: PlatformStatusChange[];
+    /** Per-platform duration chips (prefer these over overall onlineDuration) */
+    platformDurations?: PlatformDuration[];
     /**
      * True when the user went straight from Online → Offline on mobile
      * (skipping Idle). Mobile Discord normally idles first when AFK,

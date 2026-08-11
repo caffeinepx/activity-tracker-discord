@@ -80,6 +80,632 @@
     background: rgba(88, 101, 242, 1) !important;
 }
 
+.stalker-insights-toggle--on {
+    background: rgba(88, 101, 242, 0.22) !important;
+    color: #c9cdfb !important;
+    border-radius: 8px;
+}
+
+.stalker-insights-toggle--on:hover {
+    background: rgba(88, 101, 242, 0.35) !important;
+    color: #fff !important;
+}
+
+/* ── Day timeline & stats (insights) ─────────────────────────────── */
+
+.stalker-insights {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 0 1 auto;
+    height: auto;
+    min-height: 0;
+    max-height: 100%;
+    overflow: auto;
+    padding: 4px 2px 8px;
+    align-self: stretch;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Vertically center timeline block in the main panel (kills empty void under the chart) */
+.stalker-main-body:has(.stalker-insights--timeline) {
+    justify-content: center;
+}
+
+.stalker-insights--timeline {
+    margin-top: auto;
+    margin-bottom: auto;
+}
+
+.stalker-insights-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+.stalker-insights-head__left {
+    min-width: 0;
+    flex: 1;
+}
+
+.stalker-insights-head__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+    margin-top: 2px;
+}
+
+.stalker-insights-title {
+    color: #f2f3f5 !important;
+    line-height: 1.2;
+}
+
+.stalker-insights-sub {
+    color: #b5bac1 !important;
+    font-size: 12px;
+}
+
+.stalker-insights-user-select {
+    margin-top: 6px;
+    display: block;
+    max-width: 200px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.3);
+    color: #f2f3f5;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.stalker-insights-tabs {
+    display: inline-flex;
+    padding: 2px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.25);
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.stalker-insights-tab {
+    border: none;
+    background: transparent;
+    color: #b5bac1;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.stalker-insights-tab:hover {
+    color: #f2f3f5;
+}
+
+.stalker-insights-tab--active {
+    background: rgba(88, 101, 242, 0.35);
+    color: #fff;
+}
+
+.stalker-insights-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 6px;
+    padding: 28px 16px;
+    color: #b5bac1;
+}
+
+.stalker-insights-empty--inline {
+    padding: 8px 4px;
+    align-items: flex-start;
+    text-align: left;
+}
+
+.stalker-insights-empty__hint {
+    color: #949ba4 !important;
+    max-width: 360px;
+}
+
+.stalker-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 0 0 auto;
+    min-height: 0;
+    width: 100%;
+}
+
+/* Zoom controls */
+.stalker-timeline-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+.stalker-timeline-toolbar__label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #949ba4;
+}
+
+.stalker-timeline-toolbar__pct {
+    font-size: 12px;
+    font-weight: 700;
+    color: #dbdee1;
+    min-width: 40px;
+    font-variant-numeric: tabular-nums;
+}
+
+.stalker-timeline-zoom {
+    -webkit-appearance: none;
+    appearance: none;
+    width: min(180px, 40vw);
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    outline: none;
+    cursor: pointer;
+}
+
+.stalker-timeline-zoom::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #5865f2;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+}
+
+.stalker-timeline-zoom::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #5865f2;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+}
+
+.stalker-timeline-zoom-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.25);
+    color: #f2f3f5;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.stalker-timeline-zoom-btn:hover:not(:disabled) {
+    background: rgba(88, 101, 242, 0.35);
+}
+
+.stalker-timeline-zoom-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.stalker-timeline-zoom-reset {
+    border: none;
+    background: transparent;
+    color: #949cf7;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 6px;
+}
+
+.stalker-timeline-zoom-reset:hover {
+    color: #fff;
+    text-decoration: underline;
+}
+
+.stalker-timeline-legend {
+    display: inline-flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    font-weight: 600;
+    color: #b5bac1;
+}
+
+.stalker-timeline-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.stalker-timeline-legend i {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+}
+
+.stalker-timeline-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-radius: 12px;
+    /* Solid base so sticky labels can match */
+    background: #1a1b1e;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    /* No horizontal padding — sticky left:0 lines up cleanly */
+    padding: 12px 0 14px;
+    scrollbar-width: thin;
+    flex: 0 0 auto;
+}
+
+.stalker-timeline-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: min-content;
+    padding-right: 12px;
+}
+
+.stalker-timeline-hours {
+    display: flex;
+    align-items: flex-end;
+    margin-bottom: 2px;
+}
+
+.stalker-timeline-hours__spacer {
+    flex-shrink: 0;
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    background: #1a1b1e;
+    box-shadow: 6px 0 10px rgba(0, 0, 0, 0.35);
+}
+
+.stalker-timeline-hours__rail {
+    display: flex;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 4px;
+}
+
+.stalker-timeline-hour {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: #b5bac1;
+    text-align: left;
+    padding-left: 2px;
+    box-sizing: border-box;
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+    height: 16px;
+    line-height: 16px;
+    white-space: nowrap;
+}
+
+.stalker-timeline-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    min-height: 32px;
+}
+
+/* Sticky Desktop / Mobile / Web labels — stay put while the day scrolls */
+.stalker-timeline-row__label {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #dbdee1;
+    padding: 0 10px 0 12px;
+    box-sizing: border-box;
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    background: #1a1b1e;
+    box-shadow: 6px 0 10px rgba(0, 0, 0, 0.35);
+    align-self: stretch;
+}
+
+.stalker-timeline-row__icon {
+    display: inline-flex;
+    width: 16px;
+    height: 16px;
+    color: #b5bac1;
+}
+
+.stalker-timeline-row__icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.stalker-timeline-row__track {
+    position: relative;
+    height: 24px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.03);
+    overflow: hidden;
+}
+
+.stalker-timeline-seg {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    border-radius: 4px;
+    min-width: 2px;
+    opacity: 0.95;
+    cursor: default;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+.stalker-timeline-seg:hover {
+    filter: brightness(1.12);
+    z-index: 2;
+}
+
+.stalker-timeline-hint {
+    color: #949ba4 !important;
+    font-size: 11px;
+    flex-shrink: 0;
+    padding: 0 2px;
+}
+
+.stalker-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    overflow: visible;
+    padding-bottom: 12px;
+    flex: 0 1 auto;
+}
+
+.stalker-stats-section-title {
+    color: #dbdee1 !important;
+    font-size: 12px;
+    font-weight: 700;
+    margin-top: 2px;
+}
+
+.stalker-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 6px;
+}
+
+.stalker-stats-grid--4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.stalker-stats-grid--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+    .stalker-stats-grid--4,
+    .stalker-stats-grid--3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.stalker-stat-card {
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.stalker-stat-card__value {
+    font-size: 14px;
+    font-weight: 700;
+    color: #f2f3f5;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stalker-stat-card__label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #b5bac1;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.stalker-stat-card__hint {
+    font-size: 9px;
+    color: #949ba4;
+    margin-top: 1px;
+    line-height: 1.25;
+}
+
+.stalker-stats-platforms {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.stalker-stats-plat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.stalker-stats-plat-card__name {
+    font-size: 12px;
+    font-weight: 700;
+    color: #f2f3f5;
+}
+
+.stalker-stats-plat-card__vals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+
+.stalker-stats-plat-card__v {
+    font-size: 12px;
+    font-weight: 600;
+    color: #dbdee1;
+}
+
+.stalker-stats-plat-card__v em {
+    font-style: normal;
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-right: 4px;
+    opacity: 0.85;
+}
+
+.stalker-stats-plat-card__v--online em { color: #23a559; }
+.stalker-stats-plat-card__v--idle em { color: #f0b232; }
+.stalker-stats-plat-card__v--dnd em { color: #f23f43; }
+
+.stalker-stats-span {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 11px;
+    color: #b5bac1;
+    padding: 2px 0 4px;
+}
+
+/* ── Simplified presence log rows ────────────────────────────────── */
+
+.stalker-presence-simple {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.stalker-presence-change {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+}
+
+.stalker-presence-change__plat {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #f2f3f5;
+    min-width: 64px;
+}
+
+.stalker-presence-change__plat svg {
+    width: 14px;
+    height: 14px;
+    color: #b5bac1;
+}
+
+.stalker-presence-change__dur {
+    font-size: 11px;
+    font-weight: 500;
+    color: #949ba4;
+}
+
+.stalker-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.stalker-status-pill--online {
+    background: rgba(35, 165, 89, 0.18);
+    color: #23a559;
+}
+
+.stalker-status-pill--idle {
+    background: rgba(240, 178, 50, 0.18);
+    color: #f0b232;
+}
+
+.stalker-status-pill--dnd {
+    background: rgba(242, 63, 67, 0.16);
+    color: #f23f43;
+}
+
+.stalker-status-pill--offline,
+.stalker-status-pill--invisible,
+.stalker-status-pill--unknown {
+    background: rgba(128, 132, 142, 0.18);
+    color: #a3a6aa;
+}
+
+.stalker-presence-now {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.stalker-presence-now__label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #949ba4;
+}
+
+.stalker-presence-now__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.04);
+    color: #dbdee1;
+}
+
+.stalker-presence-now__chip svg {
+    width: 12px;
+    height: 12px;
+}
+
+.stalker-presence-now__chip--online { color: #23a559; }
+.stalker-presence-now__chip--idle { color: #f0b232; }
+.stalker-presence-now__chip--dnd { color: #f23f43; }
+
 .stalker-ss-mode-wrap {
     position: relative;
     z-index: 200;
@@ -1025,7 +1651,7 @@
 .stalker-main-body {
     flex: 1 1 auto;
     min-height: 0;
-    overflow: hidden;
+    overflow: auto;
     display: flex;
     flex-direction: column;
 }
@@ -1242,6 +1868,20 @@
 .stalker-meta-chip--offline {
     background: rgba(128, 132, 142, 0.18);
     color: #a3a6aa;
+}
+
+.stalker-meta-chip--idle {
+    background: rgba(240, 178, 50, 0.18);
+    color: #f0b232;
+}
+
+.stalker-meta-chip--dnd {
+    background: rgba(242, 63, 67, 0.15);
+    color: #f23f43;
+}
+
+.stalker-meta-chip--ongoing {
+    outline: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 /* ── Status badges ──────────────────────────────────────────────── */

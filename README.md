@@ -23,16 +23,20 @@ Forked from [Ondra-D/vencord-activity-tracker](https://github.com/Ondra-D/vencor
 - **Live platform strip** — device indicators for the focused user
 - **Per-user open** — open history for one user (context menu / toolbar) or the combined log
 - **Open Logs / Snapshots / Settings** from the history modal sidebar
+- **Day timeline & stats** — chart of Online / Idle / DND per platform across the day (zoom + scroll), plus combined and per-platform totals
 
 #### Screenshot Mode
 
 - Toggle in the history modal to hide identities for screenshots / sharing
 - Modes: **Redact** (default avatar + generic name), **Blur**, **Black out**
 - Default mode stored in plugin settings
+- Applies to history list, timeline/stats titles, and user settings when opened from history
 
 #### Presence intelligence
 
 - **Platform / device timings** — which devices were online and when, with under-icon ongoing indicators
+- **Platform-aware notifications** — e.g. “Online on Mobile”, “Idle on Desktop”, with other platforms still listed
+- **Platform-specific duration chips** — e.g. `Mobile Online 2h 14m` instead of vague “Session Online”
 - **Potentially invisible** heuristic — mobile Online → Offline (without idle/dnd) flagged in history and notifications
 - More reliable disk log load (including deferred load after native module registers)
 
@@ -56,6 +60,14 @@ Forked from [Ondra-D/vencord-activity-tracker](https://github.com/Ondra-D/vencor
 
 - Activity Tracker section on tracked user profiles (online duration / last seen, platform row, quick open history)
 
+#### UI style modes
+
+Plugin setting **History / settings UI style**:
+
+1. **Full custom UI (plugin colors)** — islands + mica + plugin palette (default)
+2. **Custom UI + theme colors** — same layout, colors follow Discord / client theme
+3. **Full theme compatibility (Discord-native UI)** — flat modal, no custom islands/mica
+
 ---
 
 ## Screenshots
@@ -69,6 +81,29 @@ Forked from [Ondra-D/vencord-activity-tracker](https://github.com/Ondra-D/vencor
 ---
 
 ## Changelog
+
+### 2026-08-11 — Multi-platform presence, timeline/stats, UI modes
+
+**Added**
+
+- Day **timeline** (Desktop / Mobile / Web rows, 12h AM/PM axis, zoom slider, sticky row labels)
+- Day **stats** tab (combined union times, per-platform Online/Idle/DND, event counts)
+- Header chart button to open Timeline & Stats (shares day navigation with the log feed)
+- **Platform-aware presence notifications** (which device flipped, what’s still active)
+- **Platform-specific duration chips** in history (`Mobile Online …`, etc.)
+- UI mode dropdown: full custom / custom + theme colors / full theme compatibility
+- Screenshot mode coverage for timeline titles and user-settings identity line
+
+**Changed**
+
+- Overall “Session Online” duration is no longer the default label when a platform can be attributed
+- Presence logging records `platformChanges` / `platformDurations` for multi-device sessions
+- Toolbar and history continue to support per-user vs combined open paths
+
+**Fixed**
+
+- Device-only presence updates no longer falsely notify as a generic “is Online”
+- Overall online duration is only stamped on full online/offline session boundaries (not every platform flip)
 
 ### 2026-07-31 — Toolbar, context menu, context-aware history
 
@@ -134,7 +169,8 @@ Or follow: https://youtu.be/XmVNRKrphlw?si=XFwjkwU_1bMOjOUc
 1. Right-click a user → **Track User**
 2. Right-click a tracked user → **Presence History** or **Stop Tracking**
 3. Use the **eye** in the channel toolbar for quick history access
-4. Open plugin settings for retention, screenshot default mode, and toolbar visibility
+4. Open plugin settings for retention, screenshot default mode, toolbar visibility, and **UI style**
+5. In Activity History, use the chart button for **Timeline & Stats**
 
 ## License
 

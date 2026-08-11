@@ -1,0 +1,506 @@
+/*
+ * UI modes (plugin setting: uiMode)
+ * ----------------------------------------------------------------
+ * stalker-ui-custom          — default island/mica + plugin palette (base styles.css)
+ * stalker-ui-custom-themed   — same layout, Discord/theme colors
+ * stalker-ui-native          — flat Discord modal, no custom islands
+ */
+
+/* ══════════════════════════════════════════════════════════════════
+ * Shared Discord token aliases (used by custom-themed + native)
+ * ══════════════════════════════════════════════════════════════════ */
+
+.stalker-ui-custom-themed,
+.stalker-ui-native {
+    --at-text: var(--text-default, var(--text-normal));
+    --at-text-muted: var(--text-muted, var(--text-subtle, var(--header-secondary)));
+    --at-text-strong: var(--text-strong, var(--header-primary, var(--text-default, var(--text-normal))));
+    --at-link: var(--text-link, var(--brand-500, var(--brand-experiment)));
+
+    --at-modal: var(--modal-background, var(--background-base-lowest, var(--background-primary)));
+    --at-bg: var(--background-base-low, var(--background-primary));
+    --at-bg-secondary: var(--background-base-lower, var(--background-secondary));
+    --at-bg-secondary-alt: var(--background-base-lower-alt, var(--background-secondary-alt, var(--background-secondary)));
+    --at-bg-tertiary: var(--background-base-lowest, var(--background-tertiary));
+    --at-bg-floating: var(--background-surface-high, var(--background-floating, var(--background-secondary)));
+    --at-card: var(--card-secondary-bg, var(--background-surface-high, var(--background-secondary)));
+    --at-bg-accent: var(--background-accent, var(--background-modifier-accent));
+    --at-bg-mod-hover: var(--background-modifier-hover);
+    --at-bg-mod-active: var(--background-modifier-active);
+    --at-bg-mod-selected: var(--background-modifier-selected);
+    --at-bg-mod-accent: var(--background-modifier-accent);
+
+    --at-interactive: var(--interactive-normal, var(--icon-primary));
+    --at-interactive-hover: var(--interactive-hover, var(--interactive-icon-hover, var(--icon-primary)));
+    --at-brand: var(--brand-500, var(--brand-experiment, var(--brand)));
+    --at-brand-hover: var(--brand-560, var(--brand-experiment-560, var(--brand-500)));
+
+    --at-online: var(--status-positive, var(--green-360, #23a559));
+    --at-idle: var(--status-warning, var(--text-status-idle, var(--yellow-300, #f0b232)));
+    --at-dnd: var(--status-danger, var(--text-feedback-critical, var(--red-400, #f23f43)));
+    --at-offline: var(--status-offline, var(--primary-500, #80848e));
+
+    --at-border: var(--border-subtle, var(--background-modifier-accent));
+    --at-border-strong: var(--border-strong, var(--border-subtle));
+    --at-elevation: var(--elevation-high, var(--elevation-medium));
+    --at-radius: var(--radius-sm, 8px);
+    --at-radius-lg: var(--radius-md, 12px);
+
+    color: var(--at-text);
+    font-family: var(--font-primary, inherit);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+ * Mode 2 — Custom UI + theme colors
+ * Keep island layout / radii / mica structure; recolor from theme.
+ * ══════════════════════════════════════════════════════════════════ */
+
+.stalker-ui-custom-themed.stalker-history-root,
+.stalker-ui-custom-themed.stalker-settings-root {
+    color: var(--at-text) !important;
+}
+
+/* Acrylic shell tinted with theme surfaces instead of fixed dark grey */
+.stalker-ui-custom-themed .stalker-islands-shell {
+    background:
+        linear-gradient(
+            165deg,
+            color-mix(in srgb, var(--at-bg-secondary) 70%, transparent) 0%,
+            color-mix(in srgb, var(--at-bg-tertiary) 85%, transparent) 50%,
+            color-mix(in srgb, var(--at-bg-tertiary) 92%, transparent) 100%
+        ) !important;
+    border-color: var(--at-border-strong) !important;
+    outline-color: var(--at-border) !important;
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--at-bg-mod-selected) 80%, transparent),
+        0 20px 50px color-mix(in srgb, black 40%, transparent),
+        inset 0 1px 0 color-mix(in srgb, white 12%, transparent),
+        inset 0 -1px 0 color-mix(in srgb, black 20%, transparent) !important;
+}
+
+.stalker-ui-custom-themed .stalker-island {
+    background: var(--at-bg-secondary) !important;
+    border-color: var(--at-border) !important;
+    box-shadow:
+        0 10px 28px color-mix(in srgb, black 25%, transparent),
+        0 2px 8px color-mix(in srgb, black 15%, transparent),
+        inset 0 1px 0 color-mix(in srgb, white 6%, transparent) !important;
+    color: var(--at-text);
+}
+
+.stalker-ui-custom-themed .stalker-island--sidebar {
+    background: var(--at-bg-secondary-alt) !important;
+}
+
+.stalker-ui-custom-themed .stalker-island--main,
+.stalker-ui-custom-themed .stalker-island--settings-body {
+    background: var(--at-bg) !important;
+}
+
+.stalker-ui-custom-themed .stalker-modal-title,
+.stalker-ui-custom-themed .stalker-main-toolbar__title,
+.stalker-ui-custom-themed .stalker-sidebar-user__name,
+.stalker-ui-custom-themed .stalker-log-entry__header-name,
+.stalker-ui-custom-themed .stalker-insights-title {
+    color: var(--at-text-strong) !important;
+}
+
+.stalker-ui-custom-themed .stalker-modal-subtitle,
+.stalker-ui-custom-themed .stalker-main-toolbar__desc,
+.stalker-ui-custom-themed .stalker-sidebar-item__desc,
+.stalker-ui-custom-themed .stalker-sidebar-user__tag,
+.stalker-ui-custom-themed .stalker-log-entry__time,
+.stalker-ui-custom-themed .stalker-insights-sub,
+.stalker-ui-custom-themed .stalker-timeline-hint {
+    color: var(--at-text-muted) !important;
+}
+
+.stalker-ui-custom-themed .stalker-sidebar-item {
+    color: var(--at-interactive);
+}
+
+.stalker-ui-custom-themed .stalker-sidebar-item:hover {
+    background: var(--at-bg-mod-hover) !important;
+    color: var(--at-text-strong);
+}
+
+.stalker-ui-custom-themed .stalker-sidebar-item--active {
+    background: var(--at-bg-mod-selected) !important;
+    color: var(--at-text-strong) !important;
+}
+
+.stalker-ui-custom-themed .stalker-sidebar-item--active .stalker-sidebar-item__icon {
+    color: var(--at-brand) !important;
+}
+
+.stalker-ui-custom-themed .stalker-sidebar-item__count {
+    background: var(--at-bg-accent) !important;
+    color: var(--at-text) !important;
+}
+
+.stalker-ui-custom-themed .stalker-sidebar-item__count--has,
+.stalker-ui-custom-themed .stalker-sidebar-item--active .stalker-sidebar-item__count--has {
+    background: color-mix(in srgb, var(--at-brand) 30%, transparent) !important;
+    color: var(--at-text-strong) !important;
+}
+
+.stalker-ui-custom-themed .stalker-platform-chip {
+    background: var(--at-bg-secondary) !important;
+    border-color: var(--at-border) !important;
+    color: var(--at-interactive) !important;
+}
+
+.stalker-ui-custom-themed .stalker-platform-chip:hover {
+    background: var(--at-bg-mod-hover) !important;
+    color: var(--at-interactive-hover) !important;
+}
+
+.stalker-ui-custom-themed .stalker-platform-chip--active {
+    background: var(--at-brand) !important;
+    border-color: var(--at-brand) !important;
+    color: var(--white-500, #fff) !important;
+}
+
+.stalker-ui-custom-themed .stalker-log-entry {
+    background: var(--at-card) !important;
+    border-color: var(--at-border) !important;
+    color: var(--at-text);
+}
+
+.stalker-ui-custom-themed .stalker-log-entry:hover {
+    border-color: color-mix(in srgb, var(--at-brand) 40%, var(--at-border)) !important;
+}
+
+.stalker-ui-custom-themed .stalker-meta-chip--online {
+    background: color-mix(in srgb, var(--at-online) 18%, transparent) !important;
+    color: var(--at-online) !important;
+}
+
+.stalker-ui-custom-themed .stalker-meta-chip--offline {
+    background: color-mix(in srgb, var(--at-offline) 18%, transparent) !important;
+    color: var(--at-text-muted) !important;
+}
+
+.stalker-ui-custom-themed .stalker-meta-chip--idle {
+    background: color-mix(in srgb, var(--at-idle) 18%, transparent) !important;
+    color: var(--at-idle) !important;
+}
+
+.stalker-ui-custom-themed .stalker-meta-chip--dnd {
+    background: color-mix(in srgb, var(--at-dnd) 16%, transparent) !important;
+    color: var(--at-dnd) !important;
+}
+
+.stalker-ui-custom-themed .stalker-status-badge--online { background: var(--at-online) !important; }
+.stalker-ui-custom-themed .stalker-status-badge--idle { background: var(--at-idle) !important; }
+.stalker-ui-custom-themed .stalker-status-badge--dnd { background: var(--at-dnd) !important; }
+.stalker-ui-custom-themed .stalker-status-badge--offline,
+.stalker-ui-custom-themed .stalker-status-badge--invisible { background: var(--at-offline) !important; }
+
+.stalker-ui-custom-themed .stalker-icon-btn {
+    color: var(--at-interactive) !important;
+}
+
+.stalker-ui-custom-themed .stalker-icon-btn:hover {
+    background: var(--at-bg-mod-hover) !important;
+    color: var(--at-interactive-hover) !important;
+}
+
+.stalker-ui-custom-themed .stalker-ss-toggle--on,
+.stalker-ui-custom-themed .stalker-insights-toggle--on {
+    background: color-mix(in srgb, var(--at-brand) 35%, transparent) !important;
+    color: var(--at-text-strong) !important;
+}
+
+.stalker-ui-custom-themed .stalker-timeline-scroll,
+.stalker-ui-custom-themed .stalker-timeline-row__label,
+.stalker-ui-custom-themed .stalker-timeline-hours__spacer {
+    background: var(--at-bg-tertiary) !important;
+    color: var(--at-text);
+}
+
+.stalker-ui-custom-themed .stalker-stat-card,
+.stalker-ui-custom-themed .stalker-stats-plat-card {
+    background: var(--at-bg-mod-hover) !important;
+    border-color: var(--at-border) !important;
+}
+
+.stalker-ui-custom-themed .stalker-sidebar-user {
+    background: var(--at-bg-secondary) !important;
+    border-color: var(--at-border) !important;
+}
+
+.stalker-ui-custom-themed .stalker-settings-footer {
+    background: var(--at-bg-secondary) !important;
+    border-color: var(--at-border) !important;
+}
+
+.stalker-ui-custom-themed .stalker-ss-mode-menu {
+    background: var(--at-bg-floating) !important;
+    border-color: var(--at-border-strong) !important;
+}
+
+/* Soften dark-only force text in theme-dark overrides when themed mode is on */
+.stalker-ui-custom-themed.theme-dark .stalker-modal-title,
+.theme-dark .stalker-ui-custom-themed .stalker-modal-title {
+    color: var(--at-text-strong) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+ * Mode 3 — Full theme compatibility (Discord-native UI)
+ * Flat modal; no mica islands or custom floating cards.
+ * ══════════════════════════════════════════════════════════════════ */
+
+.stalker-ui-native.stalker-history-root,
+.stalker-ui-native.stalker-settings-root {
+    background: var(--at-modal) !important;
+    background-color: var(--at-modal) !important;
+    border-radius: var(--at-radius-lg) !important;
+    border: 1px solid var(--at-border) !important;
+    box-shadow: var(--at-elevation, 0 8px 16px rgba(0, 0, 0, 0.24)) !important;
+    overflow: hidden !important;
+    color: var(--at-text) !important;
+}
+
+.stalker-ui-native.stalker-history-root > div:not(.stalker-islands-shell),
+.stalker-ui-native.stalker-history-root [class*="content"]:not(.stalker-islands-shell):not(.stalker-island):not(.stalker-island--main):not(.stalker-main-body):not(.stalker-log-list),
+.stalker-ui-native.stalker-settings-root > div:not(.stalker-islands-shell),
+.stalker-ui-native.stalker-settings-root [class*="content"]:not(.stalker-islands-shell):not(.stalker-island):not(.stalker-settings-scroll) {
+    background: transparent !important;
+    overflow: hidden !important;
+    height: 100%;
+}
+
+.stalker-ui-native .stalker-islands-shell,
+.stalker-ui-native .stalker-islands-shell--settings,
+.stalker-ui-native .stalker-islands-shell--compact {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    width: 100%;
+    height: 100%;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    color: var(--at-text);
+}
+
+.stalker-ui-native .stalker-island {
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+
+.stalker-ui-native .stalker-island--header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px !important;
+    min-height: 56px !important;
+    background: var(--at-modal) !important;
+    border-bottom: 1px solid var(--at-border) !important;
+    overflow: visible !important;
+    z-index: 50;
+}
+
+.stalker-ui-native .stalker-islands-body {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 0 !important;
+    overflow: hidden;
+    background: var(--at-modal) !important;
+}
+
+.stalker-ui-native .stalker-island--sidebar {
+    width: 240px !important;
+    flex-shrink: 0;
+    padding: 12px 8px 12px 12px !important;
+    overflow: hidden !important;
+    background: var(--background-base-lowest, var(--at-bg-tertiary)) !important;
+    border-right: 1px solid var(--at-border) !important;
+    border-radius: 0 !important;
+}
+
+.stalker-ui-native .stalker-island--main {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    padding: 16px 20px !important;
+    gap: 12px;
+    overflow: hidden;
+    background: var(--background-base-low, var(--at-bg)) !important;
+    border-radius: 0 !important;
+}
+
+.stalker-ui-native .stalker-island--settings-body {
+    background: var(--at-modal) !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+}
+
+.stalker-ui-native .stalker-log-entry {
+    border-radius: var(--at-radius) !important;
+    background: var(--at-card) !important;
+    border: 1px solid var(--at-border) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.stalker-ui-native .stalker-log-entry:hover {
+    background: var(--at-bg-mod-hover) !important;
+    border-color: var(--at-border-strong) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.stalker-ui-native .stalker-sidebar-item {
+    border-radius: var(--at-radius) !important;
+    background: transparent !important;
+    color: var(--at-interactive) !important;
+}
+
+.stalker-ui-native .stalker-sidebar-item:hover {
+    background: var(--at-bg-mod-hover) !important;
+    color: var(--at-text-strong) !important;
+}
+
+.stalker-ui-native .stalker-sidebar-item--active {
+    background: var(--at-bg-mod-selected) !important;
+    color: var(--at-text-strong) !important;
+}
+
+.stalker-ui-native .stalker-sidebar-item--active .stalker-sidebar-item__icon {
+    color: var(--at-brand) !important;
+}
+
+.stalker-ui-native .stalker-sidebar-item__count {
+    background: var(--at-bg-accent) !important;
+    color: var(--at-text) !important;
+}
+
+.stalker-ui-native .stalker-sidebar-item__count--has,
+.stalker-ui-native .stalker-sidebar-item--active .stalker-sidebar-item__count--has {
+    background: color-mix(in srgb, var(--at-brand) 28%, transparent) !important;
+    color: var(--at-text-strong) !important;
+}
+
+.stalker-ui-native .stalker-platform-chip {
+    border-radius: var(--at-radius) !important;
+    border: 1px solid var(--at-border) !important;
+    background: var(--at-bg-mod-accent) !important;
+    color: var(--at-interactive) !important;
+}
+
+.stalker-ui-native .stalker-platform-chip:hover {
+    background: var(--at-bg-mod-hover) !important;
+    color: var(--at-interactive-hover) !important;
+}
+
+.stalker-ui-native .stalker-platform-chip--active {
+    background: var(--at-brand) !important;
+    border-color: transparent !important;
+    color: var(--white-500, #fff) !important;
+}
+
+.stalker-ui-native .stalker-modal-title,
+.stalker-ui-native .stalker-main-toolbar__title,
+.stalker-ui-native .stalker-insights-title,
+.stalker-ui-native .stalker-sidebar-user__name,
+.stalker-ui-native .stalker-log-entry__header-name {
+    color: var(--at-text-strong) !important;
+}
+
+.stalker-ui-native .stalker-modal-subtitle,
+.stalker-ui-native .stalker-main-toolbar__desc,
+.stalker-ui-native .stalker-sidebar-item__desc,
+.stalker-ui-native .stalker-sidebar-user__tag,
+.stalker-ui-native .stalker-log-entry__time,
+.stalker-ui-native .stalker-insights-sub,
+.stalker-ui-native .stalker-timeline-hint {
+    color: var(--at-text-muted) !important;
+}
+
+.stalker-ui-native .stalker-status-badge--online { background: var(--at-online) !important; color: var(--white-500, #fff) !important; }
+.stalker-ui-native .stalker-status-badge--idle { background: var(--at-idle) !important; color: var(--white-500, #fff) !important; }
+.stalker-ui-native .stalker-status-badge--dnd { background: var(--at-dnd) !important; color: var(--white-500, #fff) !important; }
+.stalker-ui-native .stalker-status-badge--offline,
+.stalker-ui-native .stalker-status-badge--invisible { background: var(--at-offline) !important; color: var(--white-500, #fff) !important; }
+
+.stalker-ui-native .stalker-meta-chip--online {
+    background: color-mix(in srgb, var(--at-online) 18%, transparent) !important;
+    color: var(--at-online) !important;
+}
+.stalker-ui-native .stalker-meta-chip--idle {
+    background: color-mix(in srgb, var(--at-idle) 18%, transparent) !important;
+    color: var(--at-idle) !important;
+}
+.stalker-ui-native .stalker-meta-chip--dnd {
+    background: color-mix(in srgb, var(--at-dnd) 16%, transparent) !important;
+    color: var(--at-dnd) !important;
+}
+.stalker-ui-native .stalker-meta-chip--offline {
+    background: color-mix(in srgb, var(--at-offline) 18%, transparent) !important;
+    color: var(--at-text-muted) !important;
+}
+
+.stalker-ui-native .stalker-icon-btn {
+    color: var(--at-interactive) !important;
+}
+.stalker-ui-native .stalker-icon-btn:hover {
+    background: var(--at-bg-mod-hover) !important;
+    color: var(--at-interactive-hover) !important;
+}
+
+.stalker-ui-native .stalker-ss-toggle--on,
+.stalker-ui-native .stalker-insights-toggle--on {
+    background: color-mix(in srgb, var(--at-brand) 30%, transparent) !important;
+    color: var(--at-text-strong) !important;
+}
+
+.stalker-ui-native .stalker-timeline-scroll {
+    background: var(--at-bg-tertiary) !important;
+    border-color: var(--at-border) !important;
+    border-radius: var(--at-radius) !important;
+}
+
+.stalker-ui-native .stalker-timeline-row__label,
+.stalker-ui-native .stalker-timeline-hours__spacer {
+    background: var(--at-bg-tertiary) !important;
+    color: var(--at-text) !important;
+}
+
+.stalker-ui-native .stalker-sidebar-user {
+    background: var(--background-base-low, var(--at-bg-secondary)) !important;
+    border: 1px solid var(--at-border) !important;
+    border-radius: var(--at-radius) !important;
+}
+
+.stalker-ui-native .stalker-settings-footer {
+    background: var(--at-modal) !important;
+    border-top: 1px solid var(--at-border) !important;
+    border-radius: 0 !important;
+}
+
+.stalker-ui-native .stalker-stat-card,
+.stalker-ui-native .stalker-stats-plat-card {
+    background: var(--at-bg-mod-hover) !important;
+    border-color: var(--at-border) !important;
+    border-radius: var(--at-radius) !important;
+}
+
+.stalker-ui-native .stalker-ss-mode-menu {
+    background: var(--at-bg-floating) !important;
+    border-color: var(--at-border-strong) !important;
+    border-radius: var(--at-radius) !important;
+}

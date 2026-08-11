@@ -5,8 +5,10 @@ import { FormSwitchCompat } from "@components/FormSwitch";
 import { ModalCloseButton, ModalProps, ModalRoot, ModalSize, openModal } from "@utils/modal";
 import { GuildStore, ScrollerThin, Text, useState } from "@webpack/common";
 
+import { getUiModeClass, settings, type ScreenshotRedactMode } from "../settings";
 import { getUserConfig, persistUserConfig } from "../store";
 import { UserStalkerConfig } from "../types";
+import { redactDisplayName, redactMask, redactTag } from "../utils";
 import { BellIcon } from "./Icons";
 
 const cl = classNameFactory("stalker-settings-");
@@ -90,8 +92,11 @@ function ServerSelectorModal({ modalProps, currentList, onUpdate }: { modalProps
         modalProps.onClose();
     };
 
+    const { uiMode } = settings.use(["uiMode"]);
+    const uiModeClass = getUiModeClass(uiMode as any);
+
     return (
-        <ModalRoot {...modalProps} size={ModalSize.MEDIUM} className={cl("root") + " stalker-settings-root"}>
+        <ModalRoot {...modalProps} size={ModalSize.MEDIUM} className={`${cl("root")} stalker-settings-root ${uiModeClass}`}>
             <div className="stalker-islands-shell stalker-islands-shell--settings stalker-islands-shell--compact">
                 <header className="stalker-island stalker-island--header">
                     <div className="stalker-modal-title-block">
@@ -171,7 +176,19 @@ function ServerSelectorModal({ modalProps, currentList, onUpdate }: { modalProps
     );
 }
 
-export function UserStalkerSettingsModal({ modalProps, userId, userStore }: { modalProps: ModalProps; userId: string; userStore: any; }) {
+export function UserStalkerSettingsModal({
+    modalProps,
+    userId,
+    userStore,
+    screenshotMode = false,
+    redactMode = "redact",
+}: {
+    modalProps: ModalProps;
+    userId: string;
+    userStore: any;
+    screenshotMode?: boolean;
+    redactMode?: ScreenshotRedactMode;
+}) {
     const user = userStore.getUser(userId);
     const [config, setConfig] = useState<UserStalkerConfig>(() => getUserConfig(userId));
 
@@ -196,10 +213,29 @@ export function UserStalkerSettingsModal({ modalProps, userId, userStore }: { mo
         updateConfig("serverList", currentList.filter(id => id !== serverId));
     };
 
-    const displayName = user?.globalName || user?.global_name || user?.username || "User";
+    const rawName = user?.globalName || user?.global_name || user?.username || "User";
+    const displayName = redactDisplayName(rawName, redactMode, screenshotMode);
+    const tagText = user?.username ? redactTag(user.username, redactMode, screenshotMode) : "";
+
+    const renderIdentity = (text: string, isTag = false) => {
+        if (!screenshotMode) return text;
+        if (redactMode === "redact") return text;
+        return (
+            <span
+                className={`stalker-ss-text stalker-ss-text--${redactMode}`}
+                aria-label="redacted"
+                title=""
+            >
+                {redactMask(text, isTag)}
+            </span>
+        );
+    };
+
+    const { uiMode } = settings.use(["uiMode"]);
+    const uiModeClass = getUiModeClass(uiMode as any);
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.MEDIUM} className={cl("root") + " stalker-settings-root"}>
+        <ModalRoot {...modalProps} size={ModalSize.MEDIUM} className={`${cl("root")} stalker-settings-root ${uiModeClass}`}>
             <div className="stalker-islands-shell stalker-islands-shell--settings">
                 <header className="stalker-island stalker-island--header">
                     <div className="stalker-modal-title-block">
@@ -207,7 +243,8 @@ export function UserStalkerSettingsModal({ modalProps, userId, userStore }: { mo
                             User Settings
                         </Text>
                         <Text variant="text-sm/normal" className="stalker-modal-subtitle">
-                            {displayName}{user?.username ? ` · @${user.username}` : ""}
+                            {renderIdentity(displayName)}
+                            {tagText ? <> · {renderIdentity(tagText, true)}</> : null}
                         </Text>
                     </div>
                     <div className="stalker-modal-head-actions">
@@ -429,8 +466,18 @@ export function UserStalkerSettingsModal({ modalProps, userId, userStore }: { mo
     );
 }
 
-export function openUserStalkerSettings(userId: string, userStore: any) {
+export function openUserStalkerSettings(
+    userId: string,
+    userStore: any,
+    opts?: { screenshotMode?: boolean; redactMode?: ScreenshotRedactMode }
+) {
     openModal(modalProps => (
-        <UserStalkerSettingsModal modalProps={modalProps} userId={userId} userStore={userStore} />
+        <UserStalkerSettingsModal
+            modalProps={modalProps}
+            userId={userId}
+            userStore={userStore}
+            screenshotMode={opts?.screenshotMode}
+            redactMode={opts?.redactMode}
+        />
     ));
 }
