@@ -49,12 +49,588 @@ export function isInWhitelist(id: string) {
     const items = settings.store.whitelistedIds ? settings.store.whitelistedIds.split(",").map(s => s.trim()).filter(Boolean) : [];
     return items.includes(id);
 }
-export function getAvatarDecorationUrl(decorationData: { asset: string; skuId: string; } | null): string | null {
+export function getAvatarDecorationUrl(decorationData: { asset: string; skuId?: string; sku_id?: string; } | null | undefined): string | null {
     if (!decorationData?.asset) return null;
 
     const { asset } = decorationData;
-    const cleanAsset = asset.startsWith("a_") ? asset.substring(2) : asset;
-    return `https://cdn.discordapp.com/avatar-decoration-presets/${cleanAsset}.png?size=160`;
+    // Discord CDN expects the full asset hash (including a_ for animated)
+    return `https://cdn.discordapp.com/avatar-decoration-presets/${asset}.png?size=240&passthrough=true`;
+}
+
+/** Convert Discord color int (or hex string) to #rrggbb. */
+export function discordColorToHex(color: number | string | null | undefined): string | null {
+    if (color == null || color === "") return null;
+    if (typeof color === "string") {
+        const s = color.trim();
+        if (s.startsWith("#")) return s.length >= 7 ? s.slice(0, 7) : s;
+        const n = parseInt(s, 10);
+        if (Number.isFinite(n)) return discordColorToHex(n);
+        return null;
+    }
+    const n = color >>> 0;
+    return `#${(n & 0xffffff).toString(16).padStart(6, "0")}`;
+}
+
+/** Theme colors → [primaryHex, secondaryHex] for CSS gradients / border rings. */
+export function getThemeColorHexes(themeColors?: [number, number] | number[] | null): [string, string] | null {
+    if (!themeColors || !Array.isArray(themeColors) || themeColors.length < 2) return null;
+    const a = discordColorToHex(themeColors[0]);
+    const b = discordColorToHex(themeColors[1]);
+    if (!a || !b) return null;
+    return [a, b];
+}
+
+/** CSS vars / styles for Discord-style profile gradient fill + border ring. */
+export function getProfileGradientStyle(themeColors?: [number, number] | number[] | null): Record<string, string> {
+    const hexes = getThemeColorHexes(themeColors);
+    if (!hexes) return {};
+    const [c1, c2] = hexes;
+    return {
+        "--stalker-theme-primary": c1,
+        "--stalker-theme-secondary": c2,
+        "--stalker-theme-gradient": `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`,
+        "--stalker-theme-border": `linear-gradient(135deg, ${c1}, ${c2}, ${c1})`,
+    };
+}
+
+/**
+ * Nameplate static image URL.
+ * asset looks like: "nameplates/nameplatetest/angel/"
+ */
+export function getNameplateStaticUrl(nameplate?: { asset?: string } | null): string | null {
+    const asset = nameplate?.asset;
+    if (!asset) return null;
+    const path = asset.endsWith("/") ? asset : `${asset}/`;
+    return `https://cdn.discordapp.com/assets/collectibles/${path}static.png`;
+}
+
+export function getNameplateAssetUrl(nameplate?: { asset?: string } | null): string | null {
+    const asset = nameplate?.asset;
+    if (!asset) return null;
+    const path = asset.endsWith("/") ? asset : `${asset}/`;
+    return `https://cdn.discordapp.com/assets/collectibles/${path}asset.png`;
+}
+
+/** Rough palette → CSS colors for nameplate tint fallback. */
+export function getNameplatePaletteColors(palette?: string | null): { bg: string; fg: string } | null {
+    if (!palette) return null;
+    const map: Record<string, { bg: string; fg: string }> = {
+        crimson: { bg: "linear-gradient(90deg,#5c1219,#a11d2a)", fg: "#fff" },
+        berry: { bg: "linear-gradient(90deg,#4a154b,#9b2d8a)", fg: "#fff" },
+        sky: { bg: "linear-gradient(90deg,#0b3d66,#2b8fd9)", fg: "#fff" },
+        teal: { bg: "linear-gradient(90deg,#0a3d3d,#1a9e9e)", fg: "#fff" },
+        forest: { bg: "linear-gradient(90deg,#14381a,#2f8f3a)", fg: "#fff" },
+        bubble_gum: { bg: "linear-gradient(90deg,#8a2f5a,#f48fb1)", fg: "#fff" },
+        violet: { bg: "linear-gradient(90deg,#3b1f6e,#7c4dff)", fg: "#fff" },
+        cobalt: { bg: "linear-gradient(90deg,#12285c,#3d6ef5)", fg: "#fff" },
+        clover: { bg: "linear-gradient(90deg,#1e4d28,#4caf50)", fg: "#fff" },
+        lemon: { bg: "linear-gradient(90deg,#6b5a12,#f0d030)", fg: "#1a1a1a" },
+        white: { bg: "linear-gradient(90deg,#c8c8c8,#f5f5f5)", fg: "#1a1a1a" },
+        none: { bg: "linear-gradient(90deg,#2b2d31,#1e1f22)", fg: "#fff" },
+    };
+    return map[palette.toLowerCase()] ?? null;
+}
+
+/**
+ * Discord profile-frame layer CDN (from real client HTML):
+ *   https://cdn.discordapp.com/media/v1/collectibles-shop/{productOrSkuId}/{layerId}/static
+ *
+ * productOrSkuId is the first path segment (shop product / sku).
+ * layerId is the layer snowflake on the PROFILE_FRAME collectible item.
+ */
+export function getProfileFrameLayerStaticUrl(
+    productId: string | number | null | undefined,
+    layerId: string | number | null | undefined
+): string | null {
+    if (productId == null || layerId == null) return null;
+    const p = String(productId).trim();
+    const l = String(layerId).trim();
+    if (!p || !l) return null;
+    return `https://cdn.discordapp.com/media/v1/collectibles-shop/${p}/${l}/static`;
+}
+
+/**
+ * Candidate CDN URLs for a profile frame layer (try in order until one loads).
+ * Prefer the official media/v1/collectibles-shop path Discord uses in the client.
+ */
+export function getProfileFrameLayerUrlCandidates(
+    layer: {
+        id?: string | number;
+        asset?: string;
+        src?: string;
+        assets?: { static_image_url?: string; animated_image_url?: string; };
+    } | null | undefined,
+    productId?: string | number | null | Array<string | number | null | undefined>
+): string[] {
+    if (!layer) return [];
+    const out: string[] = [];
+    const push = (u?: string | null) => {
+        if (u && !out.includes(u)) out.push(u);
+    };
+
+    const productIds = Array.isArray(productId)
+        ? productId.filter(Boolean).map(String)
+        : productId != null
+            ? [String(productId)]
+            : [];
+
+    // Official Discord client path — highest priority
+    // https://cdn.discordapp.com/media/v1/collectibles-shop/{productId}/{layerId}/static
+    if (layer.id != null) {
+        for (const pid of productIds) {
+            push(getProfileFrameLayerStaticUrl(pid, layer.id));
+        }
+    }
+
+    push(typeof layer.src === "string" && layer.src.startsWith("http") ? layer.src : null);
+    push(layer.assets?.static_image_url);
+    push(layer.assets?.animated_image_url);
+
+    if (typeof layer.asset === "string") {
+        if (layer.asset.startsWith("http")) push(layer.asset);
+        else if (layer.asset.includes("collectibles-shop")) {
+            push(layer.asset.startsWith("http") ? layer.asset : `https://cdn.discordapp.com/${layer.asset.replace(/^\//, "")}`);
+        } else {
+            const path = layer.asset.endsWith("/") ? layer.asset : `${layer.asset}/`;
+            push(`https://cdn.discordapp.com/assets/collectibles/${path}static.png`);
+            push(`https://cdn.discordapp.com/assets/collectibles/${path}asset.png`);
+        }
+    }
+
+    try {
+        const url = tryDiscordCollectiblesAssetUrl(layer);
+        if (url) out.unshift(url);
+    } catch { /* ignore */ }
+
+    return out;
+}
+
+/** @deprecated use getProfileFrameLayerUrlCandidates */
+export function getProfileFrameLayerUrl(
+    layer: { id?: string | number; asset?: string; src?: string; } | null | undefined,
+    productId?: string | number | null
+): string | null {
+    return getProfileFrameLayerUrlCandidates(layer, productId)[0] ?? null;
+}
+
+/**
+ * Use Discord client helpers (when present) to resolve collectible asset URLs / products.
+ * Best-effort — fails silently outside Discord.
+ */
+function tryDiscordCollectiblesAssetUrl(layer: any): string | null {
+    const w = (globalThis as any);
+    const candidates = [
+        w?.Vencord?.Webpack?.Common,
+        w?.findByProps?.("getCollectiblesItemAssetUrl"),
+    ];
+    for (const c of candidates) {
+        const fn = c?.getCollectiblesItemAssetUrl;
+        if (typeof fn === "function") {
+            try {
+                const url = fn(layer);
+                if (typeof url === "string" && url.startsWith("http")) return url;
+            } catch { /* try next */ }
+        }
+    }
+    return null;
+}
+
+/**
+ * Resolve the media path product id used in:
+ *   /media/v1/collectibles-shop/{THIS}/{layerId}/static
+ * Prefer sku_id; some products use store_listing_id / category_sku_id.
+ */
+/** All plausible media-path prefix ids for a frame product (try each with layer id). */
+export function getProfileFrameProductIds(frame: any, product?: any): string[] {
+    const raw = [
+        frame?.sku_id,
+        frame?.skuId,
+        product?.sku_id,
+        product?.skuId,
+        product?.product?.sku_id,
+        product?.store_listing_id,
+        product?.storeListingId,
+        product?.product?.store_listing_id,
+        product?.category_sku_id,
+        product?.categorySkuId,
+        product?.product?.category_sku_id,
+        frame?.store_listing_id,
+        frame?.category_sku_id,
+        // Sometimes the product nest is under items[0]
+        product?.items?.[0]?.sku_id,
+        pickItemSku(product),
+    ];
+    const out: string[] = [];
+    for (const c of raw) {
+        if (c == null) continue;
+        const s = String(c).trim();
+        if (s && !out.includes(s)) out.push(s);
+    }
+    return out;
+}
+
+function pickItemSku(product: any): string | null {
+    if (!product) return null;
+    const items = product.items ?? product.product?.items ?? [];
+    if (!Array.isArray(items)) return null;
+    const item = items.find((i: any) => i?.type === 3) ?? items[0];
+    return item?.sku_id ?? item?.skuId ?? null;
+}
+
+export function getProfileFrameProductId(frame: any, product?: any): string | null {
+    return getProfileFrameProductIds(frame, product)[0] ?? null;
+}
+
+/**
+ * Look up full PROFILE_FRAME product (layers + overflow) from Discord collectibles catalog by SKU.
+ * Equipped users often only carry `{ sku_id }` on collectibles — layers live in the shop catalog.
+ */
+export function resolveProfileFrameFromCatalog(frame: any): any | null {
+    if (!frame) return null;
+    if (Array.isArray(frame.layers) && frame.layers.length) return frame;
+
+    const sku = String(frame.sku_id ?? frame.skuId ?? "");
+    if (!sku) return frame;
+
+    try {
+        // Walk known webpack stores / maps Discord exposes for collectibles
+        const stores: any[] = [];
+        try {
+            // @ts-expect-error optional webpack
+            const { findStore } = require("@webpack") as any;
+            if (typeof findStore === "function") {
+                for (const name of [
+                    "CollectiblesCatalogStore",
+                    "CollectiblesPurchaseStore",
+                    "CollectiblesStore",
+                    "SkuStore",
+                ]) {
+                    try {
+                        const s = findStore(name);
+                        if (s) stores.push(s);
+                    } catch { /* missing */ }
+                }
+            }
+        } catch { /* no webpack */ }
+
+        // Also scan window Flux stores if available
+        const flux = (globalThis as any).DiscordFlux ?? (globalThis as any)._dispatcher;
+        void flux;
+
+        for (const store of stores) {
+            const product =
+                store.getProduct?.(sku) ??
+                store.getCollectiblesProduct?.(sku) ??
+                store.get?.(sku) ??
+                store.products?.[sku] ??
+                store.getState?.()?.products?.[sku];
+            if (!product) continue;
+
+            const items = product.items ?? product.products ?? [];
+            const item =
+                (Array.isArray(items) ? items.find((i: any) => i?.type === 3 || i?.layers) : null) ??
+                (Array.isArray(items) ? items[0] : null) ??
+                product;
+
+            if (item?.layers?.length || item?.overflow_top != null || product.layers?.length) {
+                return {
+                    ...frame,
+                    layers: item.layers ?? product.layers ?? frame.layers,
+                    overflow_top: item.overflow_top ?? product.overflow_top ?? frame.overflow_top,
+                    overflow_bottom: item.overflow_bottom ?? product.overflow_bottom ?? frame.overflow_bottom,
+                    overflow_horizontal: item.overflow_horizontal ?? product.overflow_horizontal ?? frame.overflow_horizontal,
+                    inner_width: item.inner_width ?? product.inner_width ?? frame.inner_width,
+                    label: item.label ?? product.name ?? frame.label,
+                    assets: item.assets ?? product.preview_assets ?? frame.assets,
+                };
+            }
+        }
+    } catch {
+        /* catalog unavailable */
+    }
+
+    return frame;
+}
+
+/**
+ * CSS overflow vars matching Discord's profileFrameContainer:
+ *   --custom-profile-frame-container-width: 1200
+ *   --custom-profile-frame-overflow-top / bottom / horizontal
+ *
+ * Discord designs frames at ~1200px width; we scale to the actual card width.
+ */
+export function getProfileFrameOverflowStyle(
+    frame: any,
+    cardWidthPx = 212
+): Record<string, string> {
+    const designW = Number(frame?.inner_width ?? frame?.container_width ?? frame?.containerWidth ?? 1200) || 1200;
+    const top = Number(frame?.overflow_top ?? frame?.overflowTop ?? 298);
+    const bottom = Number(frame?.overflow_bottom ?? frame?.overflowBottom ?? 107);
+    const horizontal = Number(frame?.overflow_horizontal ?? frame?.overflowHorizontal ?? 56);
+    const scale = Math.max(0.12, Math.min(1, cardWidthPx / designW));
+
+    return {
+        "--custom-profile-frame-container-width": String(designW),
+        "--custom-profile-frame-overflow-top": String(Number.isFinite(top) ? top : 298),
+        "--custom-profile-frame-overflow-bottom": String(Number.isFinite(bottom) ? bottom : 107),
+        "--custom-profile-frame-overflow-horizontal": String(Number.isFinite(horizontal) ? horizontal : 56),
+        "--stalker-frame-scale": String(scale),
+        "--stalker-frame-overflow-top": `${(Number.isFinite(top) ? top : 298) * scale}px`,
+        "--stalker-frame-overflow-bottom": `${(Number.isFinite(bottom) ? bottom : 107) * scale}px`,
+        "--stalker-frame-overflow-horizontal": `${(Number.isFinite(horizontal) ? horizontal : 56) * scale}px`,
+        "--stalker-frame-card-width": `${cardWidthPx}px`,
+    };
+}
+
+/**
+ * Discord layer placement classes: front/back × top/bottom
+ * (from real DOM: profileFrameLayer front top staple, etc.)
+ */
+export function getProfileFrameLayerPlacement(
+    layer: any,
+    index: number,
+    total: number
+): { depth: "front" | "back"; edge: "top" | "bottom" } {
+    const anchor = layer?.anchor;
+    const type = layer?.type;
+    const order = layer?.order;
+
+    // String hints
+    const label = `${layer?.label ?? ""} ${layer?.name ?? ""}`.toLowerCase();
+    if (label.includes("bottom")) {
+        return { depth: label.includes("back") ? "back" : "front", edge: "bottom" };
+    }
+    if (label.includes("back")) {
+        return { depth: "back", edge: label.includes("bottom") ? "bottom" : "top" };
+    }
+
+    // Numeric anchor/type (best-effort from client enums)
+    // Common pattern for 3-layer frames: top front, bottom front, top back
+    if (anchor === 2 || type === 2) return { depth: "front", edge: "bottom" };
+    if (anchor === 3 || type === 3) return { depth: "back", edge: "top" };
+    if (anchor === 1 || type === 1) return { depth: "front", edge: "top" };
+
+    if (typeof order === "number" && total >= 2) {
+        if (order === 0 || order === 1) return { depth: "front", edge: "top" };
+        if (order === 2) return { depth: "front", edge: "bottom" };
+        if (order >= 3) return { depth: "back", edge: "top" };
+    }
+
+    // Index fallback matching the butterfly frame DOM order:
+    // 0 front top, 1 front bottom, 2 back top
+    if (total >= 3) {
+        if (index === 0) return { depth: "front", edge: "top" };
+        if (index === 1) return { depth: "front", edge: "bottom" };
+        return { depth: "back", edge: "top" };
+    }
+    if (total === 2) {
+        return index === 0
+            ? { depth: "front", edge: "top" }
+            : { depth: "front", edge: "bottom" };
+    }
+    return { depth: "front", edge: "top" };
+}
+
+/** @deprecated use getProfileFrameLayerPlacement */
+export function getProfileFrameLayerAnchor(layer: any): "top" | "bottom" | "full" | "side" {
+    const p = getProfileFrameLayerPlacement(layer, 0, 1);
+    return p.edge;
+}
+
+/**
+ * Fingerprint a profile frame for change detection.
+ * SKU only — layer/overflow detail fluctuates across partial payloads and caused
+ * false add/remove thrash + triple logs.
+ */
+export function fingerprintProfileFrame(frame: any): string | null {
+    if (!frame) return null;
+    const sku = frame.sku_id ?? frame.skuId ?? null;
+    if (sku != null && String(sku).length > 0) return String(sku);
+    return null;
+}
+
+export function fingerprintNameplate(np: any): string | null {
+    if (!np) return null;
+    return (np.sku_id ?? np.skuId ?? np.asset ?? null) as string | null;
+}
+
+export function fingerprintProfileEffect(effect: any): string | null {
+    if (!effect) return null;
+    return String(effect.id ?? effect.sku_id ?? effect.skuId ?? "") || null;
+}
+
+function objectHasKey(obj: any, key: string): boolean {
+    return !!obj && Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+/**
+ * Pull cosmetics off a raw Discord user + user_profile / profile store blob.
+ * Field names differ across USER_UPDATE, USER_PROFILE_FETCH_SUCCESS, and Flux stores.
+ *
+ * Important: when a payload does NOT include collectibles / frame fields at all,
+ * we return `undefined` (unknown) so merge keeps the previous snapshot.
+ * Only when collectibles are present do we set `null` for an unequipped frame.
+ * That prevents false "Profile Frame removed" from partial USER_UPDATE blobs.
+ */
+export function extractProfileCosmetics(user: any, profile?: any) {
+    const u = user ?? {};
+    const p = profile ?? {};
+    // Nested user_profile on fetch success payloads
+    const up = p.user_profile ?? p.userProfile ?? p;
+
+    const collectibles =
+        u.collectibles ??
+        p.collectibles ??
+        up.collectibles ??
+        null;
+
+    const sawCollectibles =
+        collectibles != null ||
+        objectHasKey(u, "collectibles") ||
+        objectHasKey(p, "collectibles") ||
+        objectHasKey(up, "collectibles");
+
+    const avatarDecorationData =
+        up.avatarDecorationData ??
+        up.avatar_decoration_data ??
+        p.avatarDecorationData ??
+        p.avatar_decoration_data ??
+        u.avatarDecorationData ??
+        u.avatar_decoration_data ??
+        undefined;
+
+    const nameplateRaw =
+        collectibles?.nameplate ??
+        collectibles?.namePlate ??
+        up.nameplate ??
+        p.nameplate ??
+        u.nameplate ??
+        null;
+
+    const profileFrameRaw =
+        collectibles?.profile_frame ??
+        collectibles?.profileFrame ??
+        up.profile_frame ??
+        up.profileFrame ??
+        p.profile_frame ??
+        p.profileFrame ??
+        u.profile_frame ??
+        u.profileFrame ??
+        null;
+
+    const sawFrameField =
+        sawCollectibles ||
+        profileFrameRaw != null ||
+        objectHasKey(u, "profile_frame") || objectHasKey(u, "profileFrame") ||
+        objectHasKey(p, "profile_frame") || objectHasKey(p, "profileFrame") ||
+        objectHasKey(up, "profile_frame") || objectHasKey(up, "profileFrame") ||
+        (collectibles != null && (objectHasKey(collectibles, "profile_frame") || objectHasKey(collectibles, "profileFrame")));
+
+    const sawNameplateField =
+        sawCollectibles ||
+        nameplateRaw != null ||
+        objectHasKey(u, "nameplate") ||
+        objectHasKey(p, "nameplate") ||
+        objectHasKey(up, "nameplate") ||
+        (collectibles != null && (objectHasKey(collectibles, "nameplate") || objectHasKey(collectibles, "namePlate")));
+
+    const profileEffectRaw =
+        up.profile_effect ??
+        up.profileEffect ??
+        p.profile_effect ??
+        p.profileEffect ??
+        u.profile_effect ??
+        u.profileEffect ??
+        null;
+
+    const sawEffectField =
+        profileEffectRaw != null ||
+        objectHasKey(u, "profile_effect") || objectHasKey(u, "profileEffect") ||
+        objectHasKey(p, "profile_effect") || objectHasKey(p, "profileEffect") ||
+        objectHasKey(up, "profile_effect") || objectHasKey(up, "profileEffect");
+
+    const theme_colors =
+        up.theme_colors ??
+        up.themeColors ??
+        p.theme_colors ??
+        p.themeColors ??
+        undefined;
+
+    const nameplateData = nameplateRaw
+        ? {
+            asset: nameplateRaw.asset,
+            skuId: nameplateRaw.sku_id ?? nameplateRaw.skuId,
+            sku_id: nameplateRaw.sku_id ?? nameplateRaw.skuId,
+            label: nameplateRaw.label,
+            palette: nameplateRaw.palette,
+            expires_at: nameplateRaw.expires_at ?? null,
+        }
+        : sawNameplateField
+            ? null
+            : undefined;
+
+    const profileFrameData = profileFrameRaw
+        ? {
+            skuId: profileFrameRaw.sku_id ?? profileFrameRaw.skuId,
+            sku_id: profileFrameRaw.sku_id ?? profileFrameRaw.skuId,
+            label: profileFrameRaw.label,
+            layers: Array.isArray(profileFrameRaw.layers)
+                ? profileFrameRaw.layers.map((l: any) => ({
+                    id: l?.id,
+                    type: l?.type,
+                    order: l?.order,
+                    anchor: l?.anchor,
+                    responsive: l?.responsive,
+                    asset: l?.asset,
+                    src: l?.src ?? l?.url,
+                    assets: l?.assets,
+                }))
+                : undefined,
+            inner_width: profileFrameRaw.inner_width ?? profileFrameRaw.innerWidth,
+            overflow_top: profileFrameRaw.overflow_top ?? profileFrameRaw.overflowTop,
+            overflow_bottom: profileFrameRaw.overflow_bottom ?? profileFrameRaw.overflowBottom,
+            overflow_horizontal: profileFrameRaw.overflow_horizontal ?? profileFrameRaw.overflowHorizontal,
+            store_listing_id: profileFrameRaw.store_listing_id ?? profileFrameRaw.storeListingId,
+            category_sku_id: profileFrameRaw.category_sku_id ?? profileFrameRaw.categorySkuId,
+            asset: profileFrameRaw.asset,
+            expires_at: profileFrameRaw.expires_at ?? null,
+        }
+        : sawFrameField
+            ? null
+            : undefined;
+
+    const profileEffectData = profileEffectRaw
+        ? {
+            id: String(profileEffectRaw.id ?? profileEffectRaw.sku_id ?? profileEffectRaw.skuId ?? ""),
+            skuId: profileEffectRaw.sku_id ?? profileEffectRaw.skuId,
+            sku_id: profileEffectRaw.sku_id ?? profileEffectRaw.skuId,
+            expires_at: profileEffectRaw.expires_at ?? null,
+        }
+        : sawEffectField
+            ? null
+            : undefined;
+
+    // Avatar decoration: only clear when we saw a decoration-related field
+    const sawDecoration =
+        avatarDecorationData !== undefined ||
+        objectHasKey(u, "avatarDecorationData") || objectHasKey(u, "avatar_decoration_data") ||
+        objectHasKey(up, "avatarDecorationData") || objectHasKey(up, "avatar_decoration_data") ||
+        objectHasKey(p, "avatarDecorationData") || objectHasKey(p, "avatar_decoration_data");
+
+    return {
+        avatarDecorationData: sawDecoration ? (avatarDecorationData ?? null) : undefined,
+        avatarDecoration: sawDecoration ? (avatarDecorationData?.asset ?? null) : undefined,
+        nameplateData,
+        nameplate: sawNameplateField ? fingerprintNameplate(nameplateData) : undefined,
+        // Profile frames: do not extract/return — logging was too noisy/false-positive
+        profileFrameData: undefined,
+        profileFrame: undefined,
+        profileEffectData: sawEffectField
+            ? (profileEffectData?.id ? profileEffectData : null)
+            : undefined,
+        profileEffect: sawEffectField ? fingerprintProfileEffect(profileEffectData) : undefined,
+        theme_colors: theme_colors ?? undefined,
+    };
 }
 
 export function formatTimestamp(ts: number) {

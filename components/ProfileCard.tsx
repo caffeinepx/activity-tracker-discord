@@ -5,7 +5,8 @@ import { Tooltip, UserStore, useState } from "@webpack/common";
 
 import { getProfileChangeLabel } from "../store";
 import { PresenceLogEntry, ProfileChanges, ProfileSnapshot } from "../types";
-import { getAvatarDecorationUrl } from "../utils";
+import { getAvatarDecorationUrl, getProfileGradientStyle, getThemeColorHexes } from "../utils";
+import { SnapshotCosmeticsExtras } from "./ProfileCosmetics";
 
 function SafeAvatar({ userId, avatarUrl, username, getExt }: { userId: string; avatarUrl: string | null; username: string; getExt: (hash: string) => string }) {
     const [failed, setFailed] = useState(false);
@@ -85,18 +86,31 @@ export function ProfileCard({ snapshot, userId, label, changedFields, referenceS
     const bannerUrl = snapshot.banner ? `https://cdn.discordapp.com/banners/${userId}/${snapshot.banner}.${getExt(snapshot.banner)}?size=600` : null;
     const bannerColor = snapshot.banner_color;
     const avatarDecorationUrl = snapshot.avatarDecorationData ? getAvatarDecorationUrl(snapshot.avatarDecorationData) : null;
+    const themeStyle = getProfileGradientStyle(snapshot.theme_colors);
+    const hexes = getThemeColorHexes(snapshot.theme_colors);
 
-    const isChanged = (field: string) => changedFields?.includes(field);
+    const isChanged = (field: string) =>
+        changedFields?.includes(field) ||
+        (field === "avatarDecoration" && (changedFields?.includes("avatar_decoration") || changedFields?.includes("avatarDecoration"))) ||
+        (field === "profile_effect" && (changedFields?.includes("profile_effect") || changedFields?.includes("profileEffect")));
 
     const showCustomStatus = snapshot.customStatus || referenceSnapshot?.customStatus;
     const showPronouns = snapshot.pronouns || referenceSnapshot?.pronouns;
     const showBio = snapshot.bio || referenceSnapshot?.bio;
     const showConnections = (snapshot.connected_accounts && snapshot.connected_accounts.length > 0) || (referenceSnapshot?.connected_accounts && referenceSnapshot.connected_accounts.length > 0);
     const showDivider = showBio || showConnections;
+    const hasEffect = !!(snapshot.profileEffect || snapshot.profileEffectData);
 
     return (
-        <div className="stalker-profile-card">
+        <div
+            className={[
+                "stalker-profile-card",
+                hexes ? "stalker-profile-card--themed" : "",
+            ].filter(Boolean).join(" ")}
+            style={themeStyle as any}
+        >
             <div className="stalker-profile-card__label">{label}</div>
+            {hexes && <div className="stalker-profile-card__theme-ring" aria-hidden />}
 
             <div className="stalker-profile-card__banner-section" style={{ position: "relative", ...(isChanged("banner") || isChanged("banner_color") ? { outline: "2px solid #5865f2" } : {}) }}>
                 <SafeBanner
@@ -105,6 +119,7 @@ export function ProfileCard({ snapshot, userId, label, changedFields, referenceS
                     bannerColor={bannerColor}
                     getExt={getExt}
                 />
+                {hasEffect && <div className="stalker-profile-card__effect" title="Profile effect" aria-hidden />}
 
                 <div className="stalker-profile-card__avatar-container" style={isChanged("avatar") || isChanged("avatarDecoration") ? { outline: "2px solid #5865f2", borderRadius: "50%" } : {}}>
                     <SafeAvatar
@@ -149,9 +164,9 @@ export function ProfileCard({ snapshot, userId, label, changedFields, referenceS
                 )}
             </div>
 
-            <div className="stalker-profile-card__body">
-                <div className="stalker-profile-card__user-info">
-                    <div className="stalker-profile-card__display-name" style={isChanged("global_name") || isChanged("username") ? { backgroundColor: "rgba(88, 101, 242, 0.2)", borderRadius: "4px", padding: "2px 4px" } : {}}>
+            <div className="stalker-profile-card__body" style={hexes ? { background: `linear-gradient(180deg, ${hexes[0]}cc 0%, ${hexes[1]}ee 100%)` } : undefined}>
+                <div className="stalker-profile-card__user-info" style={isChanged("nameplate") || isChanged("profile_effect") || isChanged("theme_colors") ? { outline: "2px solid #5865f2", borderRadius: 6, padding: 4 } : undefined}>
+                    <div className="stalker-profile-card__display-name" style={isChanged("global_name") || isChanged("username") || isChanged("display_name") ? { backgroundColor: "rgba(88, 101, 242, 0.2)", borderRadius: "4px", padding: "2px 4px" } : {}}>
                         {snapshot.global_name || snapshot.username || "Unknown"}
                         {showPronouns && (
                             <span className="stalker-profile-card__pronouns" style={isChanged("pronouns") ? { backgroundColor: "rgba(88, 101, 242, 0.2)", borderRadius: "4px", padding: "2px" } : {}}> ({snapshot.pronouns || "None"})</span>
@@ -161,6 +176,7 @@ export function ProfileCard({ snapshot, userId, label, changedFields, referenceS
                         {snapshot.username}
                         {snapshot.discriminator && snapshot.discriminator !== "0" && `#${snapshot.discriminator}`}
                     </div>
+                    <SnapshotCosmeticsExtras snapshot={snapshot} userId={userId} />
                 </div>
 
                 {showDivider && (

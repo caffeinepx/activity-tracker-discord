@@ -3,6 +3,60 @@
 
 export type PresenceStatus = "online" | "idle" | "dnd" | "offline" | "invisible" | string;
 
+/** Equipped avatar decoration (Discord shop collectible). */
+export interface AvatarDecorationData {
+    asset: string;
+    skuId?: string;
+    sku_id?: string;
+    expires_at?: number | null;
+}
+
+/** Equipped nameplate collectible. */
+export interface NameplateData {
+    asset?: string;
+    skuId?: string;
+    sku_id?: string;
+    label?: string;
+    palette?: string;
+    expires_at?: number | null;
+}
+
+/** Layer of a profile frame (decorative border around the profile card). */
+export interface ProfileFrameLayer {
+    id?: string | number;
+    type?: number;
+    order?: number;
+    anchor?: number;
+    responsive?: boolean;
+    asset?: string;
+    src?: string;
+}
+
+/** Equipped profile frame collectible. */
+export interface ProfileFrameData {
+    skuId?: string;
+    sku_id?: string;
+    label?: string;
+    layers?: ProfileFrameLayer[];
+    inner_width?: number;
+    overflow_top?: number;
+    overflow_bottom?: number;
+    overflow_horizontal?: number;
+    asset?: string;
+    expires_at?: number | null;
+    /** Used in media path: /media/v1/collectibles-shop/{id}/{layer}/static */
+    store_listing_id?: string;
+    category_sku_id?: string;
+}
+
+/** Equipped profile effect (particle/animation on profile). */
+export interface ProfileEffectData {
+    id?: string;
+    skuId?: string;
+    sku_id?: string;
+    expires_at?: number | null;
+}
+
 export interface ProfileSnapshot {
     username?: string;
     avatar?: string | null;
@@ -12,12 +66,22 @@ export interface ProfileSnapshot {
     banner?: string | null;
     banner_color?: string | null;
     avatarDecoration?: string | null;
-    avatarDecorationData?: { asset: string; skuId: string; } | null;
+    avatarDecorationData?: AvatarDecorationData | null;
     connected_accounts?: Array<{ type: string; name: string; verified: boolean; }>;
     pronouns?: string | null;
-    theme_colors?: [number, number] | null;
+    /** Discord profile theme gradient colors (two ints → hex). */
+    theme_colors?: [number, number] | number[] | null;
     emoji?: any | null;
     customStatus?: string | null;
+    /** Profile frame (border around the profile card) — sku/layers fingerprint. */
+    profileFrame?: string | null;
+    profileFrameData?: ProfileFrameData | null;
+    /** Nameplate behind display name. */
+    nameplate?: string | null;
+    nameplateData?: NameplateData | null;
+    /** Profile effect collectible id. */
+    profileEffect?: string | null;
+    profileEffectData?: ProfileEffectData | null;
 }
 
 export interface ProfileChanges {

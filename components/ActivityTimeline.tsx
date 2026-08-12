@@ -376,6 +376,64 @@ function RedactedTitle({
     );
 }
 
+function defaultDiscordAvatarUrl(userId?: string) {
+    let idx = 0;
+    try {
+        if (userId) idx = Number((BigInt(userId) >> 22n) % 6n);
+    } catch { /* ignore */ }
+    return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
+}
+
+/** Avatar for timeline/stats header — respects screenshot mode */
+function InsightsAvatar({
+    userId,
+    username,
+    screenshotMode,
+    redactMode,
+}: {
+    userId: string;
+    username?: string | null;
+    screenshotMode: boolean;
+    redactMode: ScreenshotRedactMode;
+}) {
+    const user = UserStore.getUser(userId);
+    const realUrl = user?.avatar
+        ? `https://cdn.discordapp.com/avatars/${userId}/${user.avatar}.png?size=64`
+        : null;
+
+    if (screenshotMode) {
+        if (redactMode === "redact") {
+            return (
+                <img
+                    src={defaultDiscordAvatarUrl(userId)}
+                    alt=""
+                    className="stalker-insights-avatar stalker-ss-avatar stalker-ss-avatar--redact"
+                />
+            );
+        }
+        if (redactMode === "blackout") {
+            return <div className="stalker-insights-avatar stalker-ss-avatar stalker-ss-avatar--blackout" aria-hidden />;
+        }
+        const src = realUrl || defaultDiscordAvatarUrl(userId);
+        return (
+            <img
+                src={src}
+                alt=""
+                className="stalker-insights-avatar stalker-ss-avatar stalker-ss-avatar--blur"
+            />
+        );
+    }
+
+    if (realUrl) {
+        return <img src={realUrl} alt="" className="stalker-insights-avatar" />;
+    }
+    return (
+        <div className="stalker-insights-avatar stalker-insights-avatar--fallback" aria-hidden>
+            {(username || "?").charAt(0).toUpperCase()}
+        </div>
+    );
+}
+
 export function ActivityInsightsPanel({
     userId,
     dayLogs,
@@ -475,20 +533,30 @@ export function ActivityInsightsPanel({
         <div className={`stalker-insights${tab === "timeline" ? " stalker-insights--timeline" : " stalker-insights--stats"}`}>
             <div className="stalker-insights-head">
                 <div className="stalker-insights-head__left">
-                    <Text variant="text-md/semibold" className="stalker-insights-title">
-                        <RedactedTitle
-                            text={displayName}
+                    <div className="stalker-insights-identity">
+                        <InsightsAvatar
+                            userId={activeUserId}
+                            username={user?.username ?? rawDisplayName}
                             screenshotMode={screenshotMode}
                             redactMode={redactMode}
                         />
-                    </Text>
-                    <div className="stalker-insights-head__meta">
-                        <span className="stalker-insights-sub">{dayLabel}</span>
-                        <span className="stalker-timeline-legend">
-                            <span><i style={{ background: STATUS_COLORS.online }} /> Online</span>
-                            <span><i style={{ background: STATUS_COLORS.idle }} /> Idle</span>
-                            <span><i style={{ background: STATUS_COLORS.dnd }} /> DND</span>
-                        </span>
+                        <div className="stalker-insights-identity__text">
+                            <Text variant="text-md/semibold" className="stalker-insights-title">
+                                <RedactedTitle
+                                    text={displayName}
+                                    screenshotMode={screenshotMode}
+                                    redactMode={redactMode}
+                                />
+                            </Text>
+                            <div className="stalker-insights-head__meta">
+                                <span className="stalker-insights-sub">{dayLabel}</span>
+                                <span className="stalker-timeline-legend">
+                                    <span><i style={{ background: STATUS_COLORS.online }} /> Online</span>
+                                    <span><i style={{ background: STATUS_COLORS.idle }} /> Idle</span>
+                                    <span><i style={{ background: STATUS_COLORS.dnd }} /> DND</span>
+                                </span>
+                            </div>
+                        </div>
                     </div>
                     {!userId && candidates.length > 1 && (
                         <select

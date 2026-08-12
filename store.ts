@@ -7,9 +7,10 @@ import { PluginNative } from "@utils/types";
 import { UserStore } from "@webpack/common";
 
 import { getRetentionCutoffMs, getWhitelistedIds } from "./settings";
-import { PresenceLogEntry, ProfileSnapshot, UserStalkerConfig } from "./types";
+import { PresenceLogEntry, ProfileChanges, ProfileSnapshot, UserStalkerConfig } from "./types";
 import {
     buildPresenceNotifyCopy,
+    extractProfileCosmetics,
     formatTimestamp,
     getDurationLabel,
     logger,
@@ -58,16 +59,20 @@ export async function readUserLogs(userId: string, cutoffMs?: number): Promise<P
 export async function appendUserLog(userId: string, entry: PresenceLogEntry, cutoffMs: number) {
     const native = getNativeHelper();
     if (native) {
+        // Native path is append-only; cutoff only applied on read (never rewrite-wipe)
         await native.appendLog(userId, entry, cutoffMs);
         return;
     }
     try {
-        let existing = await readUserLogs(userId);
-        if (cutoffMs) {
-            existing = existing.filter(log => log.timestamp >= cutoffMs);
-        }
-        existing.unshift(entry);
-        await DataStore.set(`stalker-logs-${userId}`, existing);
+        // Web/DataStore: append without discarding history that failed to load
+        const existing = await readUserLogs(userId); // no cutoff — keep full store
+        const next = [entry, ...(Array.isArray(existing) ? existing : [])];
+        // Soft cap for browser storage only (native uses jsonl files)
+        const MAX_WEB_LOGS = 50_000;
+        await DataStore.set(
+            `stalker-logs-${userId}`,
+            next.length > MAX_WEB_LOGS ? next.slice(0, MAX_WEB_LOGS) : next
+        );
     } catch (e) {
         logger.error(`Failed to append web log for user ${userId}`, e);
     }
@@ -85,6 +90,112 @@ export async function deleteUserLogs(userId: string) {
         logger.error(`Failed to delete web logs for user ${userId}`, e);
     }
 }
+
+function logEntryDedupeKey(log: PresenceLogEntry): string {
+    return [
+        log.userId ?? "",
+        log.timestamp ?? 0,
+        log.type ?? "",
+        log.previousStatus ?? "",
+        log.currentStatus ?? "",
+        log.activitySummary ?? "",
+    ].join("|");
+}
+
+/** Merge + dedupe log arrays (newest first). */
+export function mergeLogEntries(...lists: PresenceLogEntry[][]): PresenceLogEntry[] {
+    const byKey = new Map<string, PresenceLogEntry>();
+    for (const list of lists) {
+        if (!Array.isArray(list)) continue;
+        for (const log of list) {
+            if (!log || typeof log.timestamp !== "number" || !log.userId) continue;
+            const key = logEntryDedupeKey(log);
+            if (!byKey.has(key)) byKey.set(key, log);
+        }
+    }
+    const merged = Array.from(byKey.values());
+    merged.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
+    return merged;
+}
+
+/**
+ * Persist a full merged log list for one user.
+ * Native: writeMergedLogs (safe one-shot merge to primary jsonl).
+ * Web/extension: DataStore key stalker-logs-{userId} (survives extension updates).
+ */
+export async function persistMergedUserLogs(userId: string, entries: PresenceLogEntry[]) {
+    const merged = mergeLogEntries(entries);
+    const native = getNativeHelper();
+    if (native && typeof (native as any).writeMergedLogs === "function") {
+        await (native as any).writeMergedLogs(userId, merged);
+        return merged.length;
+    }
+    // Browser Equicord (e.g. Zen): IndexedDB DataStore — keep full history
+    await DataStore.set(`stalker-logs-${userId}`, merged);
+    return merged.length;
+}
+
+/**
+ * Import an Activity Tracker export JSON (array of PresenceLogEntry, or { logs: [...] }).
+ * Merges with existing history per userId — does not delete anything.
+ * Adds each userId to the track whitelist so entries load on next open.
+ */
+export async function importPresenceLogsJson(raw: unknown): Promise<{
+    entryCount: number;
+    userCount: number;
+    userIds: string[];
+    perUser: Record<string, number>;
+}> {
+    let list: any[] = [];
+    if (Array.isArray(raw)) {
+        list = raw;
+    } else if (raw && typeof raw === "object" && Array.isArray((raw as any).logs)) {
+        list = (raw as any).logs;
+    } else {
+        throw new Error("Invalid export: expected a JSON array of log entries");
+    }
+
+    const byUser = new Map<string, PresenceLogEntry[]>();
+    for (const item of list) {
+        if (!item || typeof item !== "object") continue;
+        const userId = String((item as any).userId ?? "");
+        const timestamp = Number((item as any).timestamp);
+        if (!userId || !Number.isFinite(timestamp)) continue;
+        const entry = { ...(item as PresenceLogEntry), userId, timestamp };
+        const arr = byUser.get(userId) ?? [];
+        arr.push(entry);
+        byUser.set(userId, arr);
+    }
+
+    if (byUser.size === 0) {
+        throw new Error("No valid log entries found (need userId + timestamp)");
+    }
+
+    const { addToWhitelist } = await import("./utils");
+    const perUser: Record<string, number> = {};
+    let entryCount = 0;
+
+    for (const [userId, imported] of byUser) {
+        addToWhitelist(userId);
+        // Load existing without wiping — merge keeps both old import and new live logs
+        const existing = await readUserLogs(userId); // may apply retention for display cutoff; 999 days ≈ keep all
+        const merged = mergeLogEntries(imported, existing);
+        const n = await persistMergedUserLogs(userId, merged);
+        perUser[userId] = n;
+        entryCount += n;
+        logger.info(`Imported/merged ${imported.length} entries for ${userId} → ${n} total stored`);
+    }
+
+    await loadPresenceLogs();
+
+    return {
+        entryCount,
+        userCount: byUser.size,
+        userIds: Array.from(byUser.keys()),
+        perUser,
+    };
+}
+
 const lastOfflineStoreKey = () => "stalker-last-offline";
 const profileSnapshotsStoreKey = () => "stalker-profile-snapshots";
 const userConfigsStoreKey = () => "stalker-user-configs";
@@ -388,7 +499,6 @@ export function captureProfileSnapshot(user: any, profileStore?: any, activities
     const avatar = user.avatar ?? null;
     const banner = profile ? (profile.banner ?? user.banner ?? null) : undefined;
     const banner_color = profile ? (profile.bannerColor ?? (user as any).banner_color ?? (user as any).bannerColor ?? null) : undefined;
-    const avatarDecorationData = (profile as any)?.avatarDecorationData ?? (user as any).avatarDecorationData ?? (user as any).avatar_decoration_data ?? null;
     const customStatusActivity = activities?.find(act => act.type === 4);
     const customStatus = customStatusActivity?.state ?? null;
 
@@ -398,6 +508,9 @@ export function captureProfileSnapshot(user: any, profileStore?: any, activities
         verified: acc.verified
     })) : undefined;
 
+    // Cosmetics: frames, decorations, nameplates, effects, theme gradient
+    const cosmetics = extractProfileCosmetics(user, profile);
+
     return {
         username: user.username,
         avatar,
@@ -406,13 +519,18 @@ export function captureProfileSnapshot(user: any, profileStore?: any, activities
         bio: profile ? (profile.bio ?? null) : undefined,
         banner,
         banner_color: banner_color,
-        avatarDecoration: avatarDecorationData?.asset ?? null,
-        avatarDecorationData,
+        avatarDecoration: cosmetics.avatarDecoration,
+        avatarDecorationData: cosmetics.avatarDecorationData,
         customStatus,
         pronouns: profile ? (profile.pronouns ?? null) : undefined,
-        theme_colors: profile?.theme_colors ?? undefined,
+        theme_colors: cosmetics.theme_colors ?? profile?.theme_colors ?? undefined,
         emoji: profile?.emoji ?? undefined,
-        connected_accounts: connectedAccounts
+        connected_accounts: connectedAccounts,
+        // profile frames intentionally not tracked (Discord payloads thrash; false change logs)
+        nameplate: cosmetics.nameplate,
+        nameplateData: cosmetics.nameplateData,
+        profileEffect: cosmetics.profileEffect,
+        profileEffectData: cosmetics.profileEffectData,
     };
 }
 export function mergeProfileSnapshots(prev: ProfileSnapshot | undefined, current: ProfileSnapshot): ProfileSnapshot {
@@ -421,7 +539,9 @@ export function mergeProfileSnapshots(prev: ProfileSnapshot | undefined, current
     const merged: ProfileSnapshot = { ...prev };
     const basicFields: (keyof ProfileSnapshot)[] = [
         "username", "avatar", "discriminator", "global_name",
-        "avatarDecoration", "avatarDecorationData"
+        "avatarDecoration", "avatarDecorationData",
+        "nameplate", "nameplateData",
+        "profileEffect", "profileEffectData",
     ];
 
     for (const field of basicFields) {
@@ -443,32 +563,132 @@ export function mergeProfileSnapshots(prev: ProfileSnapshot | undefined, current
 
     return merged;
 }
+function sameCosmeticId(a: any, b: any): boolean {
+    // null / undefined / "" all mean "none"
+    const na = a == null || a === "" ? null : String(a);
+    const nb = b == null || b === "" ? null : String(b);
+    return na === nb;
+}
+
 export function detectProfileChanges(prev: ProfileSnapshot, current: ProfileSnapshot): string[] {
     const changes: string[] = [];
     const simpleKeys: (keyof ProfileSnapshot)[] = [
         "username", "avatar", "discriminator", "global_name",
         "avatarDecoration", "bio", "banner", "banner_color",
-        "pronouns", "customStatus"
+        "pronouns", "customStatus",
+        "nameplate", "profileEffect",
+        // profileFrame deliberately omitted — Discord collectibles payloads
+        // fire partial updates and produce false PROFILE FRAME UPDATED logs
     ];
 
     for (const key of simpleKeys) {
-        if (prev[key] !== undefined && current[key] !== undefined && prev[key] !== current[key]) {
-            changes.push(key === "global_name" ? "display_name" : key);
-        }
+        if (prev[key] === undefined || current[key] === undefined) continue;
+
+        const cosmeticKey = key === "nameplate" || key === "profileEffect" || key === "avatarDecoration";
+        const differs = cosmeticKey
+            ? !sameCosmeticId(prev[key], current[key])
+            : prev[key] !== current[key];
+
+        if (!differs) continue;
+
+        if (key === "global_name") changes.push("display_name");
+        else if (key === "avatarDecoration") changes.push("avatar_decoration");
+        else if (key === "nameplate") changes.push("nameplate");
+        else if (key === "profileEffect") changes.push("profile_effect");
+        else changes.push(key);
     }
+
+    // Complex fields — do NOT use profileFrameData / nameplateData / etc. for change
+    // detection (SKU fingerprints above already cover them; data blobs thrash).
     const complexKeys: (keyof ProfileSnapshot)[] = [
-        "theme_colors", "emoji", "connected_accounts"
+        "theme_colors", "emoji", "connected_accounts",
     ];
 
     for (const key of complexKeys) {
         if (prev[key] !== undefined && current[key] !== undefined) {
             if (JSON.stringify(prev[key]) !== JSON.stringify(current[key])) {
-                changes.push(key === "emoji" ? "profile_emoji" : key);
+                if (key === "emoji") changes.push("profile_emoji");
+                else changes.push(key);
             }
         }
     }
 
     return changes;
+}
+
+/** Debounce window for collapsing multi-dispatch profile updates into one log. */
+const PROFILE_LOG_DEBOUNCE_MS = 600;
+const pendingProfileLogs = new Map<string, {
+    timeout: ReturnType<typeof setTimeout>;
+    before: ProfileSnapshot;
+    after: ProfileSnapshot;
+    userId: string;
+    username: string;
+    discriminator?: string;
+}>();
+
+/**
+ * Queue a profile change log. Multiple rapid USER_UPDATE / PROFILE_FETCH
+ * events for the same user collapse into one entry (first before → final after).
+ */
+export function queueProfileChangeLog(opts: {
+    userId: string;
+    username: string;
+    discriminator?: string;
+    before: ProfileSnapshot;
+    after: ProfileSnapshot;
+    changes: string[];
+    onLog?: (entry: PresenceLogEntry) => void;
+}) {
+    const { userId, username, discriminator, before, after } = opts;
+    const existing = pendingProfileLogs.get(userId);
+    if (existing) clearTimeout(existing.timeout);
+
+    // Keep the earliest "before" in this burst so add/remove thrash settles correctly
+    const stableBefore = existing?.before ?? before;
+
+    const timeout = setTimeout(() => {
+        pendingProfileLogs.delete(userId);
+        const finalChanges = detectProfileChanges(stableBefore, after);
+        if (!finalChanges.length) return;
+
+        const userConfig = getUserConfig(userId);
+        if (!userConfig.logProfileChanges) return;
+
+        const profileChanges: ProfileChanges = {
+            changedFields: finalChanges,
+            before: stableBefore,
+            after,
+        };
+
+        const entry = {
+            userId,
+            username,
+            discriminator,
+            timestamp: Date.now(),
+            previousStatus: undefined,
+            currentStatus: null,
+            guildId: undefined,
+            clientStatus: {},
+            activitySummary: `profile:${finalChanges.join(",")}`,
+            clientStatusSummary: undefined,
+            guildName: null,
+            type: "profile" as const,
+            profileChanges,
+        } as PresenceLogEntry;
+
+        addPresenceLog(entry);
+        opts.onLog?.(entry);
+    }, PROFILE_LOG_DEBOUNCE_MS);
+
+    pendingProfileLogs.set(userId, {
+        timeout,
+        before: stableBefore,
+        after,
+        userId,
+        username,
+        discriminator,
+    });
 }
 export async function loadPresenceLogs() {
     try {
@@ -521,6 +741,7 @@ export function getProfileChangeLabel(field: string): string {
         banner: "Banner",
         banner_color: "Banner Color",
         avatar_decoration: "Avatar Decoration",
+        avatarDecoration: "Avatar Decoration",
         connected_accounts: "Connected Accounts",
         mutual_friends_count: "Mutual Friends",
         mutual_guilds: "Mutual Servers",
@@ -528,7 +749,10 @@ export function getProfileChangeLabel(field: string): string {
         pronouns: "Pronouns",
         theme_colors: "Profile Colors",
         profile_emoji: "Profile Emoji",
-        customStatus: "Custom Status"
+        customStatus: "Custom Status",
+        nameplate: "Nameplate",
+        profile_effect: "Profile Effect",
+        profileEffect: "Profile Effect",
     };
     return labels[field] ?? field;
 }

@@ -5,7 +5,7 @@ import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalProps, M
 import { GuildStore, NavigationRouter, PresenceStore, ScrollerThin, Text, Tooltip, useEffect, useMemo, UserStore, useState } from "@webpack/common";
 
 import { getScreenshotRedactMode, getUiModeClass, isDebugEnabled, settings, type ScreenshotRedactMode } from "../settings";
-import { clearProfileSnapshots, deleteUserLogs, getNativeHelper, isDesktopEnv, loadPresenceLogs, presenceLogListeners, presenceLogs } from "../store";
+import { clearProfileSnapshots, deleteUserLogs, getNativeHelper, importPresenceLogsJson, isDesktopEnv, loadPresenceLogs, presenceLogListeners, presenceLogs } from "../store";
 import { PresenceLogEntry } from "../types";
 import {
     formatTimestamp,
@@ -22,6 +22,7 @@ import { ActivityInsightsPanel } from "./ActivityTimeline";
 import { renderPresenceActivitySummary } from "./ActivityBadges";
 import { DeviceBadges, DeviceIcons, HistoryIcon, ProfileIcon, ActivityIcon, MessageIcon, PresenceIcon, WarningIcon } from "./Icons";
 import { renderProfileChangeBadges } from "./ProfileCard";
+import { CosmeticsUserIsland } from "./ProfileCosmetics";
 import { openSnapshotsModal } from "./SnapshotsModal";
 import { openUserStalkerSettings } from "./UserSettings";
 
@@ -52,7 +53,7 @@ function defaultDiscordAvatarUrl(userId?: string) {
 
 const SECTIONS: { id: SectionId; label: string; icon: () => React.ReactNode; description: string }[] = [
     { id: "presence", label: "Presence", icon: PresenceIcon, description: "Status & platform changes" },
-    { id: "profile", label: "Profile", icon: ProfileIcon, description: "Avatar, bio & name edits" },
+    { id: "profile", label: "Profile", icon: ProfileIcon, description: "Avatar, bio & cosmetics" },
     { id: "messages", label: "Messages", icon: MessageIcon, description: "Logged messages" },
     { id: "rich", label: "Activity", icon: ActivityIcon, description: "Games & rich presence" },
 ];
@@ -91,17 +92,21 @@ type DurationChip = {
  */
 function getPresenceDurationChips(entry: PresenceLogEntry): DurationChip[] {
     const chips: DurationChip[] = [];
+    // Dedupe by what the user sees (device + status + ongoing), not by source.
+    // platformDurations + platformChanges + deviceTimings used to all contribute
+    // the same "Mobile Online 8s" chip three times with different internal keys.
     const seen = new Set<string>();
 
     const push = (chip: DurationChip) => {
         if (!chip.durationMs || chip.durationMs <= 0) return;
-        if (seen.has(chip.key)) return;
-        seen.add(chip.key);
+        const dedupe = `${(chip.device ?? "").toLowerCase()}|${(chip.status ?? "").toLowerCase()}|${chip.ongoing ? "on" : "off"}`;
+        if (seen.has(dedupe)) return;
+        seen.add(dedupe);
         chips.push(chip);
     };
 
-    // 1) Explicit platformDurations from logger
-    if (Array.isArray(entry.platformDurations)) {
+    // Prefer explicit platformDurations from the logger when present — single source of truth
+    if (Array.isArray(entry.platformDurations) && entry.platformDurations.length > 0) {
         for (const pd of entry.platformDurations) {
             push({
                 key: `pd-${pd.device}-${pd.status}-${pd.ongoing ? "on" : "off"}`,
@@ -111,6 +116,7 @@ function getPresenceDurationChips(entry: PresenceLogEntry): DurationChip[] {
                 ongoing: pd.ongoing,
             });
         }
+        return chips;
     }
 
     // 2) platformChanges with previousDurationMs
@@ -127,9 +133,9 @@ function getPresenceDurationChips(entry: PresenceLogEntry): DurationChip[] {
         }
     }
 
-    // 3) Derive from deviceTimings at this event
+    // 3) Derive from deviceTimings at this event (only if no platformChanges chips yet)
     const timings = entry.deviceTimings;
-    if (Array.isArray(timings) && timings.length > 0) {
+    if (chips.length === 0 && Array.isArray(timings) && timings.length > 0) {
         for (const t of timings) {
             if (t.end === entry.timestamp && t.start != null && !isOffStatus(t.status)) {
                 push({
@@ -563,14 +569,64 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
     const canOpenNativeLogs = isDesktopEnv() || !!getNativeHelper();
 
     const exportLogs = () => {
-        if (!logs.length) return;
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(logs, null, 2));
+        // Only the selected user (or everyone if no user filter) — filename used to
+        // claim frierenq while dumping every loaded user into the JSON.
+        const toExport = filterUserId
+            ? logs.filter(entry => entry.userId === filterUserId)
+            : logs;
+        if (!toExport.length) return;
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(toExport, null, 2));
         const downloadAnchor = document.createElement("a");
         downloadAnchor.setAttribute("href", dataStr);
-        downloadAnchor.setAttribute("download", `${filterUserId ?? "all"}_activity_logs.json`);
+        const nameHint = filterUserId
+            ? `${filterUsername ?? filterUserId}`
+            : "all";
+        downloadAnchor.setAttribute("download", `${nameHint}_activity_logs.json`);
         document.body.appendChild(downloadAnchor);
         downloadAnchor.click();
         downloadAnchor.remove();
+    };
+
+    const [importing, setImporting] = useState(false);
+
+    /** Merge a previously exported JSON file into storage (safe; never deletes). */
+    const importLogs = () => {
+        if (importing) return;
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "application/json,.json";
+        input.onchange = async () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            setImporting(true);
+            try {
+                const text = await file.text();
+                const raw = JSON.parse(text);
+                const result = await importPresenceLogsJson(raw);
+                setLogs([...presenceLogs]);
+                logger.info(
+                    `Import OK: ${result.entryCount} entries across ${result.userCount} user(s)`,
+                    result.perUser
+                );
+                // Visible feedback without Toasts dependency
+                alert(
+                    `Imported history successfully.
+` +
+                    `${result.entryCount} entries · ${result.userCount} user(s)
+` +
+                    `Users: ${result.userIds.join(", ")}
+
+` +
+                    `Merged with existing logs (nothing deleted). Safe across extension updates.`
+                );
+            } catch (e: any) {
+                logger.error("Failed to import logs", e);
+                alert(`Import failed: ${e?.message ?? String(e)}`);
+            } finally {
+                setImporting(false);
+            }
+        };
+        input.click();
     };
 
     const deleteAllLogs = async () => {
@@ -859,14 +915,10 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
                 <div className="stalker-islands-body">
                     <aside className="stalker-island stalker-island--sidebar">
                         {filterUserId && filterUser && (
-                            <div className="stalker-sidebar-user">
-                                <UserAvatar
-                                    userId={filterUserId}
-                                    username={filterUsername ?? undefined}
-                                    screenshotMode={screenshotMode}
-                                    redactMode={redactMode}
-                                />
-                                <div className="stalker-sidebar-user__info">
+                            <CosmeticsUserIsland
+                                userId={filterUserId}
+                                screenshotMode={screenshotMode}
+                                displayName={
                                     <Text variant="text-sm/semibold" className="stalker-sidebar-user__name">
                                         <IdentityName
                                             text={redactDisplayName(
@@ -878,6 +930,8 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
                                             redactMode={redactMode}
                                         />
                                     </Text>
+                                }
+                                tag={
                                     <Text variant="text-xs/normal" className="stalker-sidebar-user__tag">
                                         <IdentityName
                                             text={redactTag(filterUser.username, redactMode, screenshotMode)}
@@ -885,9 +939,10 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
                                             redactMode={redactMode}
                                         />
                                     </Text>
-                                </div>
+                                }
+                            >
                                 <LivePlatformStrip userId={filterUserId} />
-                            </div>
+                            </CosmeticsUserIsland>
                         )}
 
                         <nav className="stalker-sidebar-nav">

@@ -225,9 +225,14 @@
     border-color: var(--at-border) !important;
 }
 
-.stalker-ui-custom-themed .stalker-sidebar-user {
+.stalker-ui-custom-themed .stalker-sidebar-user:not(.stalker-cosmetics-island--themed) {
     background: var(--at-bg-secondary) !important;
     border-color: var(--at-border) !important;
+}
+
+/* Keep Discord profile theme gradient on cosmetics island */
+.stalker-ui-custom-themed .stalker-cosmetics-island--themed {
+    border-color: transparent !important;
 }
 
 .stalker-ui-custom-themed .stalker-settings-footer {
@@ -480,9 +485,14 @@
     color: var(--at-text) !important;
 }
 
-.stalker-ui-native .stalker-sidebar-user {
+.stalker-ui-native .stalker-sidebar-user:not(.stalker-cosmetics-island--themed) {
     background: var(--background-base-low, var(--at-bg-secondary)) !important;
     border: 1px solid var(--at-border) !important;
+    border-radius: var(--at-radius) !important;
+}
+
+.stalker-ui-native .stalker-cosmetics-island--themed {
+    border-color: transparent !important;
     border-radius: var(--at-radius) !important;
 }
 

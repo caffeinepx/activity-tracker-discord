@@ -22,6 +22,7 @@ import {
     captureProfileSnapshot,
     detectProfileChanges,
     getProfileChangeLabel,
+    queueProfileChangeLog,
     getUserConfig,
     lastKnownActivities,
     lastKnownStatuses,
@@ -47,12 +48,13 @@ import {
     mobileOnlineCandidates,
     updateDeviceTimings
 } from "./store";
-import { ProfileChanges, ProfileSnapshot } from "./types";
+import { ProfileSnapshot } from "./types";
 import type { PlatformDuration, PlatformStatusChange } from "./types";
 import {
     addToWhitelist,
     activitiesSnapshotsEqual,
     diffClientStatuses,
+    extractProfileCosmetics,
     formatActivitySummary,
     getActivitySnapshots,
     getDurationLabel,
@@ -154,10 +156,10 @@ async function stalkUser(id: string) {
             if (userProfile && !lastKnownUsers.has(id)) {
                 const avatar = u.avatar ?? null;
                 const banner = userProfile.banner ?? u.banner ?? null;
-                const avatarDecorationData = (userProfile as any).avatarDecorationData ?? (u as any).avatarDecorationData ?? (u as any).avatar_decoration_data ?? null;
                 const currentActivities = PresenceStore.getActivities(id) || [];
                 const customStatusActivity = currentActivities.find(a => a?.type === 4);
                 const customStatus = customStatusActivity?.state ?? null;
+                const cosmetics = extractProfileCosmetics(u, userProfile);
 
                 const currentSnapshot: ProfileSnapshot = {
                     username: u.username,
@@ -167,12 +169,18 @@ async function stalkUser(id: string) {
                     bio: userProfile.bio ?? null,
                     banner,
                     banner_color: (userProfile as any).bannerColor ?? (u as any).banner_color ?? (u as any).bannerColor ?? null,
-                    avatarDecoration: avatarDecorationData?.asset ?? null,
-                    avatarDecorationData,
-                    customStatus
+                    avatarDecoration: cosmetics.avatarDecoration,
+                    avatarDecorationData: cosmetics.avatarDecorationData,
+                    customStatus,
+                    pronouns: (userProfile as any).pronouns ?? null,
+                    theme_colors: cosmetics.theme_colors,
+                    nameplate: cosmetics.nameplate,
+                    nameplateData: cosmetics.nameplateData,
+                    profileEffect: cosmetics.profileEffect,
+                    profileEffectData: cosmetics.profileEffectData,
                 };
                 await persistProfileSnapshot(id, currentSnapshot);
-                logger.info(`Profile fetched for ${u.username}, baseline established`);
+                logger.info(`Profile fetched for ${u.username}, baseline established (cosmetics: deco=${!!cosmetics.avatarDecoration} nameplate=${!!cosmetics.nameplate})`);
             }
         }
     } catch (e) {
@@ -362,12 +370,17 @@ export default definePlugin({
 
                 const currentAvatar = cur.avatar ?? null;
                 const currentBanner = profileData.banner ?? user.banner ?? cur.banner ?? null;
-                const avatarDecorationData = profileData.avatar_decoration_data ?? (cur as any).avatarDecorationData ?? (cur as any).avatar_decoration_data ?? null;
                 const status = PresenceStore.getStatus(id);
                 const isOnline = status && status !== "offline" && status !== "invisible";
                 const currentActivities = PresenceStore.getActivities(id) || [];
                 const customStatusActivity = currentActivities.find(a => a?.type === 4);
                 const customStatus = isOnline ? (customStatusActivity?.state ?? null) : (prev?.customStatus ?? null);
+
+                // Merge user + full profile payload for cosmetics (frame, deco, nameplate, effect, theme)
+                const cosmetics = extractProfileCosmetics(
+                    { ...cur, ...user, collectibles: user.collectibles ?? (cur as any).collectibles },
+                    { ...userProfile, user_profile: profileData, ...profileData }
+                );
 
                 const newSnapshot: ProfileSnapshot = {
                     username: cur.username,
@@ -377,13 +390,17 @@ export default definePlugin({
                     bio: profileData.bio ?? null,
                     banner: currentBanner,
                     banner_color: profileData.banner_color ?? (cur as any).banner_color ?? (cur as any).bannerColor ?? null,
-                    avatarDecoration: avatarDecorationData?.asset ?? null,
-                    avatarDecorationData,
+                    avatarDecoration: cosmetics.avatarDecoration,
+                    avatarDecorationData: cosmetics.avatarDecorationData,
                     connected_accounts: connectedAccounts,
                     pronouns: profileData.pronouns ?? null,
-                    theme_colors: profileData.theme_colors ?? null,
+                    theme_colors: cosmetics.theme_colors ?? profileData.theme_colors ?? null,
                     emoji: profileData.emoji ?? null,
-                    customStatus
+                    customStatus,
+                    nameplate: cosmetics.nameplate,
+                    nameplateData: cosmetics.nameplateData,
+                    profileEffect: cosmetics.profileEffect,
+                    profileEffectData: cosmetics.profileEffectData,
                 };
                 const mergedSnapshot = mergeProfileSnapshots(prev, newSnapshot);
 
@@ -392,61 +409,43 @@ export default definePlugin({
                     return;
                 }
                 const changes = detectProfileChanges(prev, mergedSnapshot);
+                await persistProfileSnapshot(id, mergedSnapshot);
 
                 if (changes.length > 0) {
                     logger.info(`Profile changes detected for ${cur.username}:`, changes);
-                    await persistProfileSnapshot(id, mergedSnapshot);
-
                     const userConfig = getUserConfig(id);
                     if (userConfig.logProfileChanges) {
-                        const profileChanges: ProfileChanges = {
-                            changedFields: changes,
-                            before: prev,
-                            after: mergedSnapshot
-                        };
-
-                        addPresenceLog({
+                        queueProfileChangeLog({
                             userId: id,
                             username: cur.username,
                             discriminator: cur.discriminator,
-                            timestamp: Date.now(),
-                            previousStatus: undefined,
-                            currentStatus: PresenceStore.getStatus(id) ?? null,
-                            guildId: undefined,
-                            clientStatus: {},
-                            activitySummary: `profile:${changes.join(",")}`,
-                            clientStatusSummary: undefined,
-                            guildName: null,
-                            type: "profile",
-                            profileChanges
-                        } as any);
-
-                        if (userConfig.notifyProfileChanges) {
-                            const filteredChanges = changes.filter(change => {
-                                if (change === "username" && userConfig.notifyUsername !== false) return true;
-                                if (change === "avatar" && userConfig.notifyAvatar !== false) return true;
-                                if (change === "banner" && userConfig.notifyBanner !== false) return true;
-                                if (change === "bio" && userConfig.notifyBio !== false) return true;
-                                if (change === "pronouns" && userConfig.notifyPronouns !== false) return true;
-                                if (change === "display_name" && userConfig.notifyGlobalName !== false) return true;
-                                if (!["username", "avatar", "banner", "bio", "pronouns", "display_name"].includes(change)) return true;
-                                return false;
-                            });
-
-                            if (filteredChanges.length > 0) {
+                            before: prev,
+                            after: mergedSnapshot,
+                            changes,
+                            onLog: entry => {
+                                if (!userConfig.notifyProfileChanges) return;
+                                const fields = entry.profileChanges?.changedFields ?? changes;
+                                const filteredChanges = fields.filter(change => {
+                                    if (change === "username" && userConfig.notifyUsername !== false) return true;
+                                    if (change === "avatar" && userConfig.notifyAvatar !== false) return true;
+                                    if (change === "banner" && userConfig.notifyBanner !== false) return true;
+                                    if (change === "bio" && userConfig.notifyBio !== false) return true;
+                                    if (change === "pronouns" && userConfig.notifyPronouns !== false) return true;
+                                    if (change === "display_name" && userConfig.notifyGlobalName !== false) return true;
+                                    if (!["username", "avatar", "banner", "bio", "pronouns", "display_name"].includes(change)) return true;
+                                    return false;
+                                });
+                                if (!filteredChanges.length) return;
                                 try {
-                                    const changeLabels = filteredChanges.map(c => getProfileChangeLabel(c));
                                     showNotification({
                                         title: `${cur.username} updated profile`,
-                                        body: changeLabels.join(", "),
+                                        body: filteredChanges.map(c => getProfileChangeLabel(c)).join(", "),
                                         icon: cur.avatar ? `https://cdn.discordapp.com/avatars/${id}/${cur.avatar}.png?size=64` : undefined
                                     });
-                                } catch (e) {  }
-                            }
-                        }
+                                } catch { /* ignore */ }
+                            },
+                        });
                     }
-                } else {
-                    await persistProfileSnapshot(id, mergedSnapshot);
                 }
             } catch (e) {
                 logger.error("Error in USER_PROFILE_FETCH_SUCCESS handler", e);
@@ -478,58 +477,42 @@ export default definePlugin({
                 }
                 const mergedSnapshot = mergeProfileSnapshots(prev, capturedSnapshot);
                 const changes = detectProfileChanges(prev, mergedSnapshot);
+                await persistProfileSnapshot(id, mergedSnapshot);
 
                 if (changes.length > 0) {
                     logger.info(`USER_UPDATE changes for ${cur.username}:`, changes);
-                    await persistProfileSnapshot(id, mergedSnapshot);
-
                     const userConfig = getUserConfig(id);
                     if (userConfig.logProfileChanges) {
-                        const profileChanges: ProfileChanges = {
-                            changedFields: changes,
-                            before: prev,
-                            after: mergedSnapshot
-                        };
-
-                        addPresenceLog({
+                        queueProfileChangeLog({
                             userId: id,
                             username: cur.username,
                             discriminator: cur.discriminator,
-                            timestamp: Date.now(),
-                            previousStatus: undefined,
-                            currentStatus: PresenceStore.getStatus(id) ?? null,
-                            guildId: undefined,
-                            clientStatus: {},
-                            activitySummary: `profile:${changes.join(",")}`,
-                            clientStatusSummary: undefined,
-                            guildName: null,
-                            type: "profile",
-                            profileChanges
-                        } as any);
-
-                        if (userConfig.notifyProfileChanges) {
-                            const filteredChanges = changes.filter(change => {
-                                if (change === "username" && userConfig.notifyUsername !== false) return true;
-                                if (change === "avatar" && userConfig.notifyAvatar !== false) return true;
-                                if (change === "banner" && userConfig.notifyBanner !== false) return true;
-                                if (change === "bio" && userConfig.notifyBio !== false) return true;
-                                if (change === "pronouns" && userConfig.notifyPronouns !== false) return true;
-                                if (change === "display_name" && userConfig.notifyGlobalName !== false) return true;
-                                if (!["username", "avatar", "banner", "bio", "pronouns", "display_name"].includes(change)) return true;
-                                return false;
-                            });
-
-                            if (filteredChanges.length > 0) {
+                            before: prev,
+                            after: mergedSnapshot,
+                            changes,
+                            onLog: entry => {
+                                if (!userConfig.notifyProfileChanges) return;
+                                const fields = entry.profileChanges?.changedFields ?? changes;
+                                const filteredChanges = fields.filter(change => {
+                                    if (change === "username" && userConfig.notifyUsername !== false) return true;
+                                    if (change === "avatar" && userConfig.notifyAvatar !== false) return true;
+                                    if (change === "banner" && userConfig.notifyBanner !== false) return true;
+                                    if (change === "bio" && userConfig.notifyBio !== false) return true;
+                                    if (change === "pronouns" && userConfig.notifyPronouns !== false) return true;
+                                    if (change === "display_name" && userConfig.notifyGlobalName !== false) return true;
+                                    if (!["username", "avatar", "banner", "bio", "pronouns", "display_name"].includes(change)) return true;
+                                    return false;
+                                });
+                                if (!filteredChanges.length) return;
                                 try {
-                                    const changeLabels = filteredChanges.map(c => getProfileChangeLabel(c));
                                     showNotification({
                                         title: `${cur.username} updated profile`,
-                                        body: changeLabels.join(", "),
+                                        body: filteredChanges.map(c => getProfileChangeLabel(c)).join(", "),
                                         icon: cur.avatar ? `https://cdn.discordapp.com/avatars/${id}/${cur.avatar}.png?size=64` : undefined
                                     });
-                                } catch (e) {  }
-                            }
-                        }
+                                } catch { /* ignore */ }
+                            },
+                        });
                     }
                 }
             } catch (e) {
@@ -785,38 +768,14 @@ export default definePlugin({
 
                                     const userConfig = getUserConfig(userId);
                                     if (userConfig.logProfileChanges) {
-                                        const profileChanges: ProfileChanges = {
-                                            changedFields: changes,
-                                            before: prev,
-                                            after: mergedSnapshot
-                                        };
-
-                                        addPresenceLog({
+                                        queueProfileChangeLog({
                                             userId,
                                             username: user.username,
                                             discriminator: user.discriminator,
-                                            timestamp: Date.now(),
-                                            previousStatus: undefined,
-                                            currentStatus: PresenceStore.getStatus(userId) ?? null,
-                                            guildId: undefined,
-                                            clientStatus: {},
-                                            activitySummary: `profile:${changes.join(",")}`,
-                                            clientStatusSummary: undefined,
-                                            guildName: null,
-                                            type: "profile",
-                                            profileChanges
-                                        } as any);
-
-                                        if (userConfig.notifyProfileChanges) {
-                                            try {
-                                                const changeLabels = changes.map(c => getProfileChangeLabel(c));
-                                                showNotification({
-                                                    title: `${user.username} updated profile`,
-                                                    body: changeLabels.join(", "),
-                                                    icon: user.avatar ? `https://cdn.discordapp.com/avatars/${userId}/${user.avatar}.png?size=64` : undefined
-                                                });
-                                            } catch (e) {  }
-                                        }
+                                            before: prev,
+                                            after: mergedSnapshot,
+                                            changes,
+                                        });
                                     }
                                 }
                             }
@@ -863,10 +822,15 @@ export default definePlugin({
                             return { ...c, previousDurationMs };
                         });
 
-                        // Chips: ended segments + ongoing segments on other platforms (for context)
+                        // Chips: one entry per device — ended segment for flips, else ongoing.
+                        // Deduped by device so we never emit Mobile Online three times.
                         const platformDurations: PlatformDuration[] = [];
+                        const durationDevices = new Set<string>();
                         for (const change of platformChanges) {
+                            const dev = (change.device ?? "").toLowerCase();
+                            if (!dev || durationDevices.has(dev)) continue;
                             if (change.previousDurationMs != null && change.previousDurationMs > 0) {
+                                durationDevices.add(dev);
                                 platformDurations.push({
                                     device: change.device,
                                     status: change.previousStatus,
@@ -875,16 +839,18 @@ export default definePlugin({
                                 });
                             }
                         }
-                        // Also surface ongoing durations on platforms that didn't flip this tick
-                        // (helps answer "where is the Online 2h from?")
+                        // Ongoing durations on platforms that didn't flip this tick
                         for (const timing of deviceTimings) {
                             if (timing.end != null) continue;
                             const st = (timing.status ?? "").toLowerCase();
+                            const dev = (timing.device ?? "").toLowerCase();
+                            if (!dev || durationDevices.has(dev)) continue;
                             if (!st || st === "offline" || st === "invisible") continue;
-                            if (platformChanges.some(c => c.device === timing.device)) continue;
+                            if (platformChanges.some(c => (c.device ?? "").toLowerCase() === dev)) continue;
                             if (!timing.start) continue;
                             const dur = now - timing.start;
                             if (dur <= 0) continue;
+                            durationDevices.add(dev);
                             platformDurations.push({
                                 device: timing.device,
                                 status: st,

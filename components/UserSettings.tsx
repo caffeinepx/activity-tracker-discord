@@ -308,7 +308,7 @@ export function UserStalkerSettingsModal({
                                 <div className="stalker-settings-card">
                                     <SettingRowWithNotification
                                         label="Log Profile Changes"
-                                        note="Avatar, banner, bio, username, display name, etc."
+                                        note="Avatar, banner, bio, decoration, nameplate, effect, theme colors, etc."
                                         logValue={config.logProfileChanges}
                                         notifyValue={config.notifyProfileChanges}
                                         onLogChange={value => updateConfig("logProfileChanges", value)}

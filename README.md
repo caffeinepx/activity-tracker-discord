@@ -68,6 +68,19 @@ Plugin setting **History / settings UI style**:
 2. **Custom UI + theme colors** — same layout, colors follow Discord / client theme
 3. **Full theme compatibility (Discord-native UI)** — flat modal, no custom islands/mica
 
+#### Profile cosmetics (sidebar card)
+
+- Mini profile **island** for the focused user: banner strip, avatar + shop decoration, theme gradient fill + border ring, nameplate behind the name
+- Tracks decoration / nameplate / profile effect / theme colors in the Profile section (same change-log path as avatar/banner)
+- Profile **frames** are intentionally not tracked or rendered (Discord payloads thrash and false-fire)
+
+#### Log safety & import/export
+
+- **Append-only** desktop log files (no full-file rewrite on every event — that used to wipe history)
+- Loads from `ActivityTrackerLogs` **and** legacy `StalkerLogs`, plus sibling client folders (Equicord ↔ equibop) when present
+- **Import** sidebar button — merge a previously exported JSON into storage without deleting anything
+- **Export** is scoped to the selected user (not every loaded user)
+
 ---
 
 ## Screenshots
@@ -81,6 +94,34 @@ Plugin setting **History / settings UI style**:
 ---
 
 ## Changelog
+
+### 2026-08-11 — Profile cosmetics island, log import, safer disk history
+
+**Added**
+
+- Sidebar **cosmetics island** (banner, avatar decoration, theme gradient + ring, nameplate)
+- Tracking for **avatar decoration**, **nameplate**, **profile effect**, and **theme colors** in Profile history
+- Timeline/stats header **user avatar** (screenshot-mode aware)
+- **Import** logs from an exported JSON (merge + dedupe; adds users to the track list)
+- Native **append-only** logging and multi-folder read (`ActivityTrackerLogs` / `StalkerLogs` / sibling clients)
+- Themed thin **horizontal scrollbar** on the day timeline (matches presence ScrollerThin look)
+
+**Changed**
+
+- Profile change bursts are debounced (~600ms) into a single history entry
+- Export only includes the **selected user’s** entries; filename uses username when available
+- Browser log storage soft cap raised so large imports are not immediately trimmed
+
+**Fixed**
+
+- Desktop log writes no longer rewrite the whole file every event (that could wipe older history)
+- Export no longer dumps every loaded user under one user’s filename
+- Duplicate presence duration chips (e.g. three identical `Mobile Online` pills) are collapsed to one per device
+- Scrollable sidebar nav when the cosmetics island is tall (Activity tab stays reachable)
+
+**Not included**
+
+- Discord **profile frames** — not rendered and not logged (unreliable API surface)
 
 ### 2026-08-11 — Multi-platform presence, timeline/stats, UI modes
 
