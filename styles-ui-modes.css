@@ -79,7 +79,7 @@
 }
 
 .stalker-ui-custom-themed .stalker-island {
-    background: var(--at-bg-secondary) !important;
+    background: transparent !important;
     border-color: var(--at-border) !important;
     box-shadow:
         0 10px 28px color-mix(in srgb, black 25%, transparent),
@@ -89,12 +89,12 @@
 }
 
 .stalker-ui-custom-themed .stalker-island--sidebar {
-    background: var(--at-bg-secondary-alt) !important;
+    background: transparent !important;
 }
 
 .stalker-ui-custom-themed .stalker-island--main,
 .stalker-ui-custom-themed .stalker-island--settings-body {
-    background: var(--at-bg) !important;
+    background: transparent !important;
 }
 
 .stalker-ui-custom-themed .stalker-modal-title,
