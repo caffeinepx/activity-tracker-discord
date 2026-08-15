@@ -4,6 +4,17 @@ A Vencord / Equicord custom plugin that logs presence, activity, and profile cha
 
 Forked from [Ondra-D/vencord-activity-tracker](https://github.com/Ondra-D/vencord-activity-tracker/). All credit for the original plugin goes to Ondra_D. This fork builds on that work with UI and QoL improvements.
 
+I think the fork has the core still but damn the UI is fully overhauled.
+
+### **Just a small preview**:
+- Main UI (Added Profile Stuff like banners, avatar deco, etc for a better sidebar + Better Tracking Times on Different Devices)
+<img width="1247" height="877" alt="image" src="https://github.com/user-attachments/assets/b400b13b-ccf9-482f-b82f-7354a97989e9" />
+- Timeline for the day + Stats of the User
+<img width="1247" height="877" alt="image" src="https://github.com/user-attachments/assets/44cf53ff-2a03-421c-8b41-6dce6ec28af6" />
+<img width="1247" height="877" alt="image" src="https://github.com/user-attachments/assets/2eb4be54-8965-4c39-b95e-1a7bbef65275" />
+
+Rest of the Previews I'll update someday 
+
 **This fork:** https://github.com/caffeinepx/activity-tracker-discord
 
 ## Features
@@ -83,7 +94,7 @@ Plugin setting **History / settings UI style**:
 
 ---
 
-## Screenshots
+## Screenshots (OUTDATED)
 
 ![Settings](./assets/settings.png)
 ![Presence](./assets/presence.png)
