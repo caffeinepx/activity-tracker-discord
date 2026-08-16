@@ -1,7 +1,7 @@
 # List of things I want to do So I don't forget
-- Make the README more readable and LESS CLUTTER
-- Better Previews for eveything (Say what's old and what's NEW)
-- MAKE SURE to KEEP the attribution to the original author and Mention this is a FORK
+- ✅ ~~Make the README more readable and LESS CLUTTER~~
+- ✅ ~~Better Previews for eveything (Say what's old and what's NEW)~~
+- ✅ ~~MAKE SURE to KEEP the attribution to the original author and Mention this is a FORK~~
 
 ## Planned Changes:
 - Filtering out Users in Overall Tracking UI via the eye in toolbar (the one that's everywhere, not the one with different icon for the tracked user itself)
