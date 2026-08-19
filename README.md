@@ -65,10 +65,13 @@ A Vencord / Equicord plugin that logs presence, activity, profile changes, and m
 ## Previews
 
 ### History & Logs
-| Activity Logs | Profile Logs | Message Logs |
-|---------------|--------------|--------------|
-| ![Activity Logs](./assets/new/ActivityLogs.png) | ![Profile Logs](./assets/new/ProfileLogs.png) | ![Message Logs](./assets/new/MessageLogs.png) |
+| Activity Logs | Message Logs |
+|---------------|--------------|
+| ![Activity Logs](./assets/new/ActivityLogs.png) | ![Message Logs](./assets/new/MessageLogs.png) |
 
+| Profile Logs | Profile Logs Preview |
+|---------------|--------------|
+| ![Profile Logs](./assets/new/ProfileLogs.png) | ![Profile Logs Preview](./assets/new/ProfileLogsPreview.png) 
 ### Timeline & Stats
 | Timeline | Stats |
 |----------|-------|
@@ -80,9 +83,13 @@ A Vencord / Equicord plugin that logs presence, activity, profile changes, and m
 | ![Toolbar Always Visible](./assets/new/ToolbarAlwaysVisible.png) | ![Toolbar User Specific](./assets/new/ToolbarUserSpecific.png) |
 
 ### Screenshot Mode & Settings
-| Screenshot Mode | Plugin Settings | User Tracker Settings |
-|-----------------|-----------------|-----------------------|
-| ![Screenshot Mode](./assets/new/ScreenshotMode.png) | ![Plugin Settings](./assets/new/PluginSettings.png) | ![User Tracker Settings](./assets/new/UserTrackerSettings.png) |
+| Screenshot Mode | 
+|-----------------|
+| ![Screenshot Mode](./assets/new/ScreenshotMode.png) | 
+
+| Plugin Settings | User Tracker Settings |
+|-----------------|-----------------------|
+| ![Plugin Settings](./assets/new/PluginSettings.png) | ![User Tracker Settings](./assets/new/UserTrackerSettings.png) |
 
 ---
 
