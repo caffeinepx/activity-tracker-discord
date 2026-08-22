@@ -245,6 +245,17 @@
     border-color: var(--at-border-strong) !important;
 }
 
+.stalker-ui-custom-themed .stalker-user-filter__btn {
+    background: var(--at-bg-secondary) !important;
+    border-color: var(--at-border) !important;
+    color: var(--at-text-strong) !important;
+}
+
+.stalker-ui-custom-themed .stalker-user-filter__menu {
+    background: var(--at-bg-floating) !important;
+    border-color: var(--at-border-strong) !important;
+}
+
 /* Soften dark-only force text in theme-dark overrides when themed mode is on */
 .stalker-ui-custom-themed.theme-dark .stalker-modal-title,
 .theme-dark .stalker-ui-custom-themed .stalker-modal-title {
@@ -475,6 +486,19 @@
 
 .stalker-ui-native .stalker-timeline-scroll {
     background: var(--at-bg-tertiary) !important;
+    border-color: var(--at-border) !important;
+    border-radius: var(--at-radius) !important;
+}
+
+.stalker-ui-native .stalker-user-filter__btn {
+    background: var(--background-base-lower, var(--at-bg-secondary)) !important;
+    border-color: var(--at-border) !important;
+    color: var(--at-text-strong) !important;
+    border-radius: var(--at-radius) !important;
+}
+
+.stalker-ui-native .stalker-user-filter__menu {
+    background: var(--background-floating, var(--at-bg-floating)) !important;
     border-color: var(--at-border) !important;
     border-radius: var(--at-radius) !important;
 }

@@ -24,9 +24,12 @@ export interface NameplateData {
 /** Layer of a profile frame (decorative border around the profile card). */
 export interface ProfileFrameLayer {
     id?: string | number;
-    type?: number;
-    order?: number;
-    anchor?: number;
+    /** Discord shop: often `"staple"`; older payloads used numeric enums. */
+    type?: number | string;
+    /** `"front"` | `"back"` (API) or numeric order. */
+    order?: number | string;
+    /** `"top"` | `"bottom"` (API) or numeric anchor. */
+    anchor?: number | string;
     responsive?: boolean;
     asset?: string;
     src?: string;
@@ -49,12 +52,38 @@ export interface ProfileFrameData {
     category_sku_id?: string;
 }
 
+/** One animation layer of a profile effect (Discord overlays these on the profile card). */
+export interface ProfileEffectLayer {
+    src?: string;
+    loop?: boolean;
+    height?: number;
+    width?: number;
+    duration?: number;
+    start?: number;
+    loopDelay?: number;
+    zIndex?: number;
+}
+
 /** Equipped profile effect (particle/animation on profile). */
 export interface ProfileEffectData {
     id?: string;
     skuId?: string;
     sku_id?: string;
     expires_at?: number | null;
+    /** Human title when available from shop catalog / rich payload. */
+    title?: string | null;
+    accessibilityLabel?: string | null;
+    /**
+     * Primary overlay image Discord uses in `.profileEffects img.effect`
+     * (`cdn.discordapp.com/media/v1/collectibles-shop/{hash}`).
+     */
+    effectSrc?: string | null;
+    /** Preview image URLs — Discord shop often includes these; user profile may only have id. */
+    thumbnailPreviewSrc?: string | null;
+    staticFrameSrc?: string | null;
+    reducedMotionSrc?: string | null;
+    /** Full effect layers when present on the profile / catalog. */
+    effects?: ProfileEffectLayer[] | null;
 }
 
 export interface ProfileSnapshot {
@@ -72,7 +101,10 @@ export interface ProfileSnapshot {
     /** Discord profile theme gradient colors (two ints → hex). */
     theme_colors?: [number, number] | number[] | null;
     emoji?: any | null;
+    /** Custom status text (activity type 4 `.state`). May be null when emoji-only. */
     customStatus?: string | null;
+    /** Custom status emoji (unicode name and/or custom emoji id). */
+    customStatusEmoji?: { id?: string | null; name?: string | null; animated?: boolean; } | null;
     /** Profile frame (border around the profile card) — sku/layers fingerprint. */
     profileFrame?: string | null;
     profileFrameData?: ProfileFrameData | null;
@@ -82,6 +114,29 @@ export interface ProfileSnapshot {
     /** Profile effect collectible id. */
     profileEffect?: string | null;
     profileEffectData?: ProfileEffectData | null;
+    /** Mutual friends with the current user (from profile fetch). */
+    mutual_friends_count?: number | null;
+    /** Mutual servers count with the current user (from profile fetch). */
+    mutual_guilds_count?: number | null;
+    /** Resolved mutual friends (id + display + avatar) for profile previews. */
+    mutual_friends?: MutualFriendRef[] | null;
+    /** Resolved mutual servers (id + name + icon) for profile previews. */
+    mutual_guilds?: MutualGuildRef[] | null;
+}
+
+/** Compact mutual friend entry for profile change history. */
+export interface MutualFriendRef {
+    id: string;
+    username?: string | null;
+    global_name?: string | null;
+    avatar?: string | null;
+}
+
+/** Compact mutual guild entry for profile change history. */
+export interface MutualGuildRef {
+    id: string;
+    name?: string | null;
+    icon?: string | null;
 }
 
 export interface ProfileChanges {

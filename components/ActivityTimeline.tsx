@@ -11,7 +11,7 @@ import {
 } from "../utils";
 import { DeviceIcons } from "./Icons";
 
-const PLATFORMS = ["desktop", "mobile", "web"] as const;
+const PLATFORMS = ["desktop", "mobile", "web", "embedded", "vr"] as const;
 type PlatformKey = (typeof PLATFORMS)[number];
 
 const STATUS_COLORS: Record<string, string> = {
@@ -72,21 +72,9 @@ export function buildPlatformTimeline(
     dayEnd: number,
     now = Date.now()
 ): PlatformTimeline {
-    const lastStatus: Record<PlatformKey, string> = {
-        desktop: "offline",
-        mobile: "offline",
-        web: "offline",
-    };
-    const openStart: Record<PlatformKey, number | null> = {
-        desktop: null,
-        mobile: null,
-        web: null,
-    };
-    const segments: PlatformTimeline = {
-        desktop: [],
-        mobile: [],
-        web: [],
-    };
+    const lastStatus = Object.fromEntries(PLATFORMS.map(d => [d, "offline"])) as Record<PlatformKey, string>;
+    const openStart = Object.fromEntries(PLATFORMS.map(d => [d, null])) as Record<PlatformKey, number | null>;
+    const segments = Object.fromEntries(PLATFORMS.map(d => [d, []])) as PlatformTimeline;
 
     const setStatus = (device: string, status: string, ts: number) => {
         if (!PLATFORMS.includes(device as PlatformKey)) return;
@@ -185,11 +173,7 @@ export function computeDayStats(
     dayStart: number,
     dayEnd: number
 ): DayStats {
-    const perPlatform: DayStats["perPlatform"] = {
-        desktop: emptyPlat(),
-        mobile: emptyPlat(),
-        web: emptyPlat(),
-    };
+    const perPlatform = Object.fromEntries(PLATFORMS.map(d => [d, emptyPlat()])) as DayStats["perPlatform"];
 
     for (const d of PLATFORMS) {
         for (const seg of timeline[d]) {
@@ -508,11 +492,13 @@ export function ActivityInsightsPanel({
     const displayName = redactDisplayName(rawDisplayName, redactMode, screenshotMode);
 
     const hours = Array.from({ length: 24 }, (_, h) => h);
-    // Always show Desktop + Mobile; Web only when it has activity
+    // Always show Desktop + Mobile; others when they have activity that day
     const rows: PlatformKey[] = [
         "desktop",
         "mobile",
         ...(timeline.web.length > 0 ? (["web"] as PlatformKey[]) : []),
+        ...(timeline.embedded.length > 0 ? (["embedded"] as PlatformKey[]) : []),
+        ...(timeline.vr.length > 0 ? (["vr"] as PlatformKey[]) : []),
     ];
     const hasAnySeg = PLATFORMS.some(d => timeline[d].length > 0);
 

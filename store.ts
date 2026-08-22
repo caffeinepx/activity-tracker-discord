@@ -4,16 +4,19 @@
 import * as DataStore from "@api/DataStore";
 import { showNotification } from "@api/Notifications";
 import { PluginNative } from "@utils/types";
-import { UserStore } from "@webpack/common";
+import { GuildStore, RestAPI, UserStore } from "@webpack/common";
 
 import { getRetentionCutoffMs, getWhitelistedIds } from "./settings";
-import { PresenceLogEntry, ProfileChanges, ProfileSnapshot, UserStalkerConfig } from "./types";
+import { MutualFriendRef, MutualGuildRef, PresenceLogEntry, ProfileChanges, ProfileEffectData, ProfileSnapshot, UserStalkerConfig } from "./types";
 import {
     buildPresenceNotifyCopy,
     extractProfileCosmetics,
     formatTimestamp,
     getDurationLabel,
+    getPlatformLabel,
     logger,
+    pickEffectOverlayUrl,
+    resolveProfileEffectPreview,
     statusMatchesNotifyToggle,
 } from "./utils";
 
@@ -222,7 +225,11 @@ export function updateDeviceTimings(userId: string, currentStatus: string | null
         segments = [];
     }
 
-    const devices = ["desktop", "mobile", "web"];
+    // Include any extra keys Discord may send, but always cover the canonical set
+    const devices = Array.from(new Set([
+        "desktop", "mobile", "web", "embedded", "vr",
+        ...Object.keys(clientStatusMap ?? {}),
+    ]));
     let changed = false;
 
     if (isUserOffline) {
@@ -339,7 +346,7 @@ export function addPresenceLog(entry: PresenceLogEntry & { activitySummary?: str
     if (entry.platformChanges?.length) {
         parts.push(
             `Platforms: ${entry.platformChanges
-                .map(c => `${c.device} ${c.previousStatus}→${c.currentStatus}`)
+                .map(c => `${getPlatformLabel(c.device)} ${c.previousStatus}→${c.currentStatus}`)
                 .join(", ")}`
         );
     }
@@ -484,6 +491,237 @@ export async function persistProfileSnapshot(userId: string, snapshot: ProfileSn
     });
 }
 
+// ── Profile asset archive (avatars / banners beside logs) ─────────────
+
+export type ProfileAssetKind = "avatar" | "banner";
+
+/** CDN URL for an avatar/banner hash (ext from a_ prefix). */
+export function cdnProfileAssetUrl(
+    userId: string,
+    kind: ProfileAssetKind,
+    hash: string,
+    size?: number
+): string {
+    const ext = hash.startsWith("a_") ? "gif" : "png";
+    if (kind === "avatar") {
+        return `https://cdn.discordapp.com/avatars/${userId}/${hash}.${ext}?size=${size ?? 256}`;
+    }
+    return `https://cdn.discordapp.com/banners/${userId}/${hash}.${ext}?size=${size ?? 600}`;
+}
+
+/** Download + save one asset under logs/assets/{userId}/ (no-op without native / hash). */
+export async function archiveProfileAsset(
+    userId: string,
+    kind: ProfileAssetKind,
+    hash: string | null | undefined
+): Promise<void> {
+    if (!userId || !hash) return;
+    const native = getNativeHelper();
+    if (!native?.saveProfileAsset) return;
+    try {
+        await native.saveProfileAsset(userId, kind, hash);
+    } catch (e) {
+        logger.error("archiveProfileAsset failed", userId, kind, hash, e);
+    }
+}
+
+/** Archive current avatar + banner hashes from a snapshot (idempotent). */
+export async function archiveProfileAssets(userId: string, snapshot: ProfileSnapshot): Promise<void> {
+    await Promise.all([
+        archiveProfileAsset(userId, "avatar", snapshot.avatar),
+        archiveProfileAsset(userId, "banner", snapshot.banner ?? null),
+    ]);
+    archiveProfileEffect(userId, snapshot);
+}
+
+/**
+ * Prefer a locally archived asset (data URL); fall back to Discord CDN.
+ * Web / no-native always returns the CDN URL.
+ */
+export async function resolveProfileAssetUrl(
+    userId: string,
+    kind: ProfileAssetKind,
+    hash: string | null | undefined,
+    size?: number
+): Promise<string | null> {
+    if (!userId || !hash) return null;
+    const native = getNativeHelper();
+    if (native?.readProfileAsset) {
+        try {
+            const dataUrl = await native.readProfileAsset(userId, kind, hash);
+            if (dataUrl) return dataUrl;
+        } catch (e) {
+            logger.debug("resolveProfileAssetUrl local miss/error", userId, kind, hash, e);
+        }
+    }
+    return cdnProfileAssetUrl(userId, kind, hash, size);
+}
+
+// ── Profile effect archive (shop media beside logs) ───────────────────
+
+const effectProductCache = new Map<string, any | null>();
+
+/** Fetch collectibles product JSON for a profile-effect sku/id (Discord API). */
+export async function fetchCollectiblesProduct(skuOrId: string): Promise<any | null> {
+    if (!skuOrId) return null;
+    if (effectProductCache.has(skuOrId)) return effectProductCache.get(skuOrId) ?? null;
+
+    try {
+        const res = await RestAPI.get({ url: `/collectibles-products/${skuOrId}` });
+        const body = res?.body ?? res;
+        effectProductCache.set(skuOrId, body ?? null);
+        return body ?? null;
+    } catch (e) {
+        // Public fallback (no auth) — works for shop products
+        try {
+            const r = await fetch(`https://discord.com/api/v9/collectibles-products/${skuOrId}`, {
+                headers: { "User-Agent": "Mozilla/5.0 (compatible; ActivityTracker/1.0)" },
+            });
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const body = await r.json();
+            effectProductCache.set(skuOrId, body);
+            return body;
+        } catch (e2) {
+            logger.debug("fetchCollectiblesProduct failed", skuOrId, e, e2);
+            effectProductCache.set(skuOrId, null);
+            return null;
+        }
+    }
+}
+
+/** Pull the PROFILE_EFFECT item (type 1) out of a collectibles product payload. */
+function effectItemFromProduct(product: any): any | null {
+    if (!product) return null;
+    const items = product.items ?? product.products ?? [];
+    if (Array.isArray(items)) {
+        return items.find((i: any) => i?.type === 1 || i?.effects || i?.thumbnailPreviewSrc) ?? items[0] ?? null;
+    }
+    return product.type === 1 || product.effects ? product : null;
+}
+
+/**
+ * Enrich effect data from the shop API (title, overlay src, layers) and
+ * download the overlay image into assets/{userId}/effect_{id}.img
+ */
+export async function enrichAndArchiveProfileEffect(
+    userId: string,
+    effect: ProfileEffectData | string | null | undefined
+): Promise<ProfileEffectData | null> {
+    if (!effect || !userId) return null;
+    const id = typeof effect === "string"
+        ? effect
+        : String(effect.id ?? effect.sku_id ?? effect.skuId ?? "");
+    if (!id) return null;
+
+    let data: ProfileEffectData = typeof effect === "string"
+        ? { id, skuId: id, sku_id: id }
+        : { ...effect, id };
+
+    let overlayUrl = pickEffectOverlayUrl(data);
+
+    if (!overlayUrl || !data.title || !data.effects?.length) {
+        const product = await fetchCollectiblesProduct(id)
+            ?? (data.sku_id || data.skuId
+                ? await fetchCollectiblesProduct(String(data.sku_id ?? data.skuId))
+                : null);
+        const item = effectItemFromProduct(product);
+        if (item) {
+            data = {
+                ...data,
+                title: data.title || item.title || product?.name || null,
+                accessibilityLabel:
+                    data.accessibilityLabel
+                    || item.accessibilityLabel
+                    || item.accessibility_label
+                    || null,
+                thumbnailPreviewSrc: data.thumbnailPreviewSrc || item.thumbnailPreviewSrc || null,
+                staticFrameSrc: data.staticFrameSrc || item.staticFrameSrc || null,
+                reducedMotionSrc: data.reducedMotionSrc || item.reducedMotionSrc || null,
+                effects: data.effects?.length
+                    ? data.effects
+                    : (Array.isArray(item.effects)
+                        ? item.effects.map((layer: any) => ({
+                            src: layer?.src ?? layer?.url,
+                            loop: layer?.loop,
+                            height: layer?.height,
+                            width: layer?.width,
+                            duration: layer?.duration,
+                            start: layer?.start,
+                            loopDelay: layer?.loopDelay ?? layer?.loop_delay,
+                            zIndex: layer?.zIndex ?? layer?.z_index,
+                        }))
+                        : data.effects),
+            };
+            overlayUrl = pickEffectOverlayUrl(data) || pickEffectOverlayUrl(item);
+            if (overlayUrl) data.effectSrc = overlayUrl;
+        }
+    }
+
+    if (overlayUrl) {
+        data.effectSrc = data.effectSrc || overlayUrl;
+        const native = getNativeHelper();
+        if (native?.saveUrlAsset) {
+            try {
+                await native.saveUrlAsset(userId, "effect", id, overlayUrl);
+            } catch (e) {
+                logger.error("archive profile effect failed", userId, id, e);
+            }
+        }
+    }
+
+    return data;
+}
+
+/** Archive effect for a snapshot if present (fire-and-forget). */
+export function archiveProfileEffect(userId: string, snapshot: ProfileSnapshot): void {
+    const effect = snapshot.profileEffectData ?? snapshot.profileEffect ?? null;
+    if (!effect) return;
+    void enrichAndArchiveProfileEffect(userId, effect);
+}
+
+/**
+ * Resolve overlay image for a profile effect:
+ * local archive → shop URL (and archive) → null.
+ */
+export async function resolveProfileEffectOverlayUrl(
+    userId: string,
+    effect: ProfileEffectData | string | null | undefined
+): Promise<string | null> {
+    if (!effect || !userId) return null;
+    const id = typeof effect === "string"
+        ? effect
+        : String(effect.id ?? effect.sku_id ?? effect.skuId ?? "");
+    if (!id) return null;
+
+    const native = getNativeHelper();
+    if (native?.readUrlAsset) {
+        try {
+            const local = await native.readUrlAsset(userId, "effect", id);
+            if (local) return local;
+        } catch { /* fall through */ }
+    }
+
+    // Enrich + download, then re-read local (or return remote URL as last resort)
+    const enriched = await enrichAndArchiveProfileEffect(userId, effect);
+    if (native?.readUrlAsset) {
+        try {
+            const local = await native.readUrlAsset(userId, "effect", id);
+            if (local) return local;
+        } catch { /* fall through */ }
+    }
+    return enriched?.effectSrc || pickEffectOverlayUrl(enriched) || null;
+}
+
+/** @deprecated use resolveProfileEffectOverlayUrl — kept for callers expecting preview meta */
+export async function resolveProfileEffectDisplay(
+    userId: string,
+    effect: ProfileEffectData | string | null | undefined
+) {
+    const preview = resolveProfileEffectPreview(effect);
+    const overlayUrl = await resolveProfileEffectOverlayUrl(userId, effect);
+    return preview ? { ...preview, effectUrl: overlayUrl || preview.effectUrl } : null;
+}
+
 export async function clearProfileSnapshots() {
     lastKnownUsers.clear();
     try {
@@ -494,13 +732,40 @@ export async function clearProfileSnapshots() {
     }
 }
 
+/** Normalize Discord activity emoji (custom status type 4). */
+export function captureCustomStatusEmoji(activity: any): { id?: string | null; name?: string | null; animated?: boolean; } | null {
+    const emoji = activity?.emoji;
+    if (!emoji) return null;
+    const name = emoji.name ?? null;
+    const id = emoji.id ?? null;
+    if (!name && !id) return null;
+    return {
+        id: id != null ? String(id) : null,
+        name: name != null ? String(name) : null,
+        animated: !!emoji.animated,
+    };
+}
+
+export function customStatusEmojiFingerprint(
+    emoji: { id?: string | null; name?: string | null; animated?: boolean; } | null | undefined
+): string {
+    if (!emoji) return "";
+    return `${emoji.id ?? ""}:${emoji.name ?? ""}:${emoji.animated ? 1 : 0}`;
+}
+
 export function captureProfileSnapshot(user: any, profileStore?: any, activities?: any[]): ProfileSnapshot {
     const profile = profileStore?.getUserProfile?.(user.id);
     const avatar = user.avatar ?? null;
     const banner = profile ? (profile.banner ?? user.banner ?? null) : undefined;
     const banner_color = profile ? (profile.bannerColor ?? (user as any).banner_color ?? (user as any).bannerColor ?? null) : undefined;
     const customStatusActivity = activities?.find(act => act.type === 4);
-    const customStatus = customStatusActivity?.state ?? null;
+    // Text may be null for emoji-only custom statuses — still a real status
+    const customStatus = customStatusActivity
+        ? (customStatusActivity.state ?? null)
+        : undefined;
+    const customStatusEmoji = customStatusActivity
+        ? captureCustomStatusEmoji(customStatusActivity)
+        : undefined;
 
     const connectedAccounts = profile?.connected_accounts ? (profile.connected_accounts || []).map((acc: any) => ({
         type: acc.type,
@@ -510,6 +775,8 @@ export function captureProfileSnapshot(user: any, profileStore?: any, activities
 
     // Cosmetics: frames, decorations, nameplates, effects, theme gradient
     const cosmetics = extractProfileCosmetics(user, profile);
+
+    const mutuals = profile ? extractMutualsFromProfilePayload(profile) : {};
 
     return {
         username: user.username,
@@ -521,17 +788,134 @@ export function captureProfileSnapshot(user: any, profileStore?: any, activities
         banner_color: banner_color,
         avatarDecoration: cosmetics.avatarDecoration,
         avatarDecorationData: cosmetics.avatarDecorationData,
-        customStatus,
+        customStatus: customStatusActivity ? (customStatus ?? null) : undefined,
+        customStatusEmoji: customStatusActivity ? (customStatusEmoji ?? null) : undefined,
         pronouns: profile ? (profile.pronouns ?? null) : undefined,
         theme_colors: cosmetics.theme_colors ?? profile?.theme_colors ?? undefined,
         emoji: profile?.emoji ?? undefined,
         connected_accounts: connectedAccounts,
-        // profile frames intentionally not tracked (Discord payloads thrash; false change logs)
         nameplate: cosmetics.nameplate,
         nameplateData: cosmetics.nameplateData,
         profileEffect: cosmetics.profileEffect,
         profileEffectData: cosmetics.profileEffectData,
+        mutual_friends_count: mutuals.mutual_friends_count,
+        mutual_guilds_count: mutuals.mutual_guilds_count,
+        mutual_friends: mutuals.mutual_friends,
+        mutual_guilds: mutuals.mutual_guilds,
     };
+}
+
+/**
+ * Only return mutuals when the payload actually includes those fields.
+ * Missing keys → undefined (unknown) so merge keeps the previous snapshot.
+ * Prevents "4 friends → 0" thrash from lean follow-up profile updates.
+ */
+export function extractMutualsFromProfilePayload(src: any): {
+    mutual_friends_count?: number;
+    mutual_guilds_count?: number;
+    mutual_friends?: MutualFriendRef[];
+    mutual_guilds?: MutualGuildRef[];
+} {
+    if (!src || typeof src !== "object") return {};
+
+    const out: {
+        mutual_friends_count?: number;
+        mutual_guilds_count?: number;
+        mutual_friends?: MutualFriendRef[];
+        mutual_guilds?: MutualGuildRef[];
+    } = {};
+
+    const hasFriendList = Object.prototype.hasOwnProperty.call(src, "mutual_friends")
+        || Object.prototype.hasOwnProperty.call(src, "mutualFriends");
+    const hasFriendCount = Object.prototype.hasOwnProperty.call(src, "mutual_friends_count")
+        || Object.prototype.hasOwnProperty.call(src, "mutualFriendsCount");
+    const hasGuildList = Object.prototype.hasOwnProperty.call(src, "mutual_guilds")
+        || Object.prototype.hasOwnProperty.call(src, "mutualGuilds");
+    const hasGuildCount = Object.prototype.hasOwnProperty.call(src, "mutual_guilds_count")
+        || Object.prototype.hasOwnProperty.call(src, "mutualGuildsCount");
+
+    if (hasFriendList) {
+        const list = src.mutual_friends ?? src.mutualFriends;
+        if (Array.isArray(list)) {
+            out.mutual_friends = resolveMutualFriendRefs(list);
+            out.mutual_friends_count = out.mutual_friends.length;
+        }
+    }
+    if (hasFriendCount && out.mutual_friends_count === undefined) {
+        const n = src.mutual_friends_count ?? src.mutualFriendsCount;
+        if (typeof n === "number" && Number.isFinite(n)) out.mutual_friends_count = n;
+    }
+
+    if (hasGuildList) {
+        const list = src.mutual_guilds ?? src.mutualGuilds;
+        if (Array.isArray(list)) {
+            out.mutual_guilds = resolveMutualGuildRefs(list);
+            out.mutual_guilds_count = out.mutual_guilds.length;
+        }
+    }
+    if (hasGuildCount && out.mutual_guilds_count === undefined) {
+        const n = src.mutual_guilds_count ?? src.mutualGuildsCount;
+        if (typeof n === "number" && Number.isFinite(n)) out.mutual_guilds_count = n;
+    }
+
+    return out;
+}
+
+function resolveMutualFriendRefs(list: any[]): MutualFriendRef[] {
+    const out: MutualFriendRef[] = [];
+    for (const item of list) {
+        const id = String(
+            typeof item === "object" && item
+                ? (item.id ?? item.userId ?? item.user_id ?? "")
+                : item ?? ""
+        );
+        if (!id) continue;
+        let username: string | null = null;
+        let global_name: string | null = null;
+        let avatar: string | null = null;
+        if (typeof item === "object" && item) {
+            username = item.username ?? item.user?.username ?? null;
+            global_name = item.global_name ?? item.globalName ?? item.user?.global_name ?? item.user?.globalName ?? null;
+            avatar = item.avatar ?? item.user?.avatar ?? null;
+        }
+        try {
+            const u = UserStore.getUser(id);
+            if (u) {
+                username = username ?? u.username ?? null;
+                global_name = global_name ?? (u as any).globalName ?? (u as any).global_name ?? null;
+                avatar = avatar ?? u.avatar ?? null;
+            }
+        } catch { /* ignore */ }
+        out.push({ id, username, global_name, avatar });
+    }
+    return out;
+}
+
+function resolveMutualGuildRefs(list: any[]): MutualGuildRef[] {
+    const out: MutualGuildRef[] = [];
+    for (const item of list) {
+        const id = String(
+            typeof item === "object" && item
+                ? (item.id ?? item.guild_id ?? item.guildId ?? "")
+                : item ?? ""
+        );
+        if (!id) continue;
+        let name: string | null = null;
+        let icon: string | null = null;
+        if (typeof item === "object" && item) {
+            name = item.name ?? item.nick ?? null;
+            icon = item.icon ?? null;
+        }
+        try {
+            const g = GuildStore.getGuild?.(id);
+            if (g) {
+                name = name ?? g.name ?? null;
+                icon = icon ?? g.icon ?? null;
+            }
+        } catch { /* ignore */ }
+        out.push({ id, name, icon });
+    }
+    return out;
 }
 export function mergeProfileSnapshots(prev: ProfileSnapshot | undefined, current: ProfileSnapshot): ProfileSnapshot {
     if (!prev) return current;
@@ -551,7 +935,7 @@ export function mergeProfileSnapshots(prev: ProfileSnapshot | undefined, current
     }
     const profileFields: (keyof ProfileSnapshot)[] = [
         "bio", "banner", "banner_color", "pronouns",
-        "theme_colors", "emoji", "connected_accounts"
+        "theme_colors", "emoji", "connected_accounts",
     ];
 
     for (const field of profileFields) {
@@ -560,8 +944,47 @@ export function mergeProfileSnapshots(prev: ProfileSnapshot | undefined, current
         }
     }
     if (current.customStatus !== undefined) merged.customStatus = current.customStatus;
+    if (current.customStatusEmoji !== undefined) merged.customStatusEmoji = current.customStatusEmoji;
+
+    // Mutuals: never clobber a known positive count with a bare 0/null from a lean update
+    // unless an explicit empty friends/guilds list proves the wipe.
+    mergeMutualField(merged, prev, current, "mutual_friends_count", "mutual_friends");
+    mergeMutualField(merged, prev, current, "mutual_guilds_count", "mutual_guilds");
 
     return merged;
+}
+
+function mergeMutualField(
+    merged: ProfileSnapshot,
+    prev: ProfileSnapshot,
+    current: ProfileSnapshot,
+    countKey: "mutual_friends_count" | "mutual_guilds_count",
+    listKey: "mutual_friends" | "mutual_guilds",
+) {
+    if (current[countKey] === undefined && current[listKey] === undefined) return;
+
+    const nextCount = current[countKey];
+    const nextList = current[listKey];
+    const prevCount = prev[countKey];
+
+    const provenEmpty = Array.isArray(nextList) && nextList.length === 0;
+    if (
+        typeof nextCount === "number"
+        && nextCount === 0
+        && typeof prevCount === "number"
+        && prevCount > 0
+        && !provenEmpty
+    ) {
+        // Ignore suspicious zero from incomplete profile payload
+        return;
+    }
+
+    if (nextCount !== undefined) (merged as any)[countKey] = nextCount;
+    if (nextList !== undefined) (merged as any)[listKey] = nextList;
+    // Keep list/count in sync when only one side arrived
+    if (nextList !== undefined && nextCount === undefined) {
+        (merged as any)[countKey] = nextList.length;
+    }
 }
 function sameCosmeticId(a: any, b: any): boolean {
     // null / undefined / "" all mean "none"
@@ -577,25 +1000,39 @@ export function detectProfileChanges(prev: ProfileSnapshot, current: ProfileSnap
         "avatarDecoration", "bio", "banner", "banner_color",
         "pronouns", "customStatus",
         "nameplate", "profileEffect",
-        // profileFrame deliberately omitted — Discord collectibles payloads
-        // fire partial updates and produce false PROFILE FRAME UPDATED logs
+        "mutual_friends_count", "mutual_guilds_count",
     ];
 
     for (const key of simpleKeys) {
+        // SKU/id fingerprints — missing prev means "none", so first equip still logs.
+        // Only skip when CURRENT is unknown (lean payload that shouldn't clear).
+        const cosmeticKey = key === "nameplate" || key === "profileEffect"
+            || key === "avatarDecoration";
+
+        if (cosmeticKey) {
+            if (current[key] === undefined) continue;
+            const prevVal = prev[key] === undefined ? null : prev[key];
+            if (sameCosmeticId(prevVal, current[key])) continue;
+
+            if (key === "avatarDecoration") changes.push("avatar_decoration");
+            else if (key === "nameplate") changes.push("nameplate");
+            else if (key === "profileEffect") changes.push("profile_effect");
+            continue;
+        }
+
         if (prev[key] === undefined || current[key] === undefined) continue;
-
-        const cosmeticKey = key === "nameplate" || key === "profileEffect" || key === "avatarDecoration";
-        const differs = cosmeticKey
-            ? !sameCosmeticId(prev[key], current[key])
-            : prev[key] !== current[key];
-
-        if (!differs) continue;
+        if (prev[key] === current[key]) continue;
 
         if (key === "global_name") changes.push("display_name");
-        else if (key === "avatarDecoration") changes.push("avatar_decoration");
-        else if (key === "nameplate") changes.push("nameplate");
-        else if (key === "profileEffect") changes.push("profile_effect");
+        else if (key === "mutual_guilds_count") changes.push("mutual_guilds");
         else changes.push(key);
+    }
+
+    // Custom status emoji (emoji-only statuses have null text)
+    if (prev.customStatusEmoji !== undefined && current.customStatusEmoji !== undefined) {
+        if (customStatusEmojiFingerprint(prev.customStatusEmoji) !== customStatusEmojiFingerprint(current.customStatusEmoji)) {
+            if (!changes.includes("customStatus")) changes.push("customStatus");
+        }
     }
 
     // Complex fields — do NOT use profileFrameData / nameplateData / etc. for change
@@ -613,11 +1050,28 @@ export function detectProfileChanges(prev: ProfileSnapshot, current: ProfileSnap
         }
     }
 
+    // Mutual friend/guild membership by sorted ids (richer than count alone)
+    if (prev.mutual_friends !== undefined && current.mutual_friends !== undefined) {
+        if (mutualIdFingerprint(prev.mutual_friends) !== mutualIdFingerprint(current.mutual_friends)) {
+            if (!changes.includes("mutual_friends_count")) changes.push("mutual_friends_count");
+        }
+    }
+    if (prev.mutual_guilds !== undefined && current.mutual_guilds !== undefined) {
+        if (mutualIdFingerprint(prev.mutual_guilds) !== mutualIdFingerprint(current.mutual_guilds)) {
+            if (!changes.includes("mutual_guilds")) changes.push("mutual_guilds");
+        }
+    }
+
     return changes;
 }
 
+function mutualIdFingerprint(list?: Array<{ id: string }> | null): string {
+    if (!list?.length) return "";
+    return [...list].map(x => x.id).sort().join(",");
+}
+
 /** Debounce window for collapsing multi-dispatch profile updates into one log. */
-const PROFILE_LOG_DEBOUNCE_MS = 600;
+const PROFILE_LOG_DEBOUNCE_MS = 1500;
 const pendingProfileLogs = new Map<string, {
     timeout: ReturnType<typeof setTimeout>;
     before: ProfileSnapshot;
@@ -648,37 +1102,69 @@ export function queueProfileChangeLog(opts: {
     const stableBefore = existing?.before ?? before;
 
     const timeout = setTimeout(() => {
-        pendingProfileLogs.delete(userId);
-        const finalChanges = detectProfileChanges(stableBefore, after);
-        if (!finalChanges.length) return;
+        void (async () => {
+            pendingProfileLogs.delete(userId);
+            const finalChanges = detectProfileChanges(stableBefore, after);
+            if (!finalChanges.length) return;
 
-        const userConfig = getUserConfig(userId);
-        if (!userConfig.logProfileChanges) return;
+            const userConfig = getUserConfig(userId);
+            if (!userConfig.logProfileChanges) return;
 
-        const profileChanges: ProfileChanges = {
-            changedFields: finalChanges,
-            before: stableBefore,
-            after,
-        };
+            // Archive old + new avatar/banner so CDN expiry doesn't blank history previews
+            if (finalChanges.includes("avatar") || finalChanges.includes("banner")) {
+                void archiveProfileAsset(userId, "avatar", stableBefore.avatar);
+                void archiveProfileAsset(userId, "banner", stableBefore.banner ?? null);
+                void archiveProfileAssets(userId, after);
+            }
 
-        const entry = {
-            userId,
-            username,
-            discriminator,
-            timestamp: Date.now(),
-            previousStatus: undefined,
-            currentStatus: null,
-            guildId: undefined,
-            clientStatus: {},
-            activitySummary: `profile:${finalChanges.join(",")}`,
-            clientStatusSummary: undefined,
-            guildName: null,
-            type: "profile" as const,
-            profileChanges,
-        } as PresenceLogEntry;
+            // Enrich + archive effect/frame shop media BEFORE writing the log
+            let beforeSnap = stableBefore;
+            let afterSnap = after;
+            if (finalChanges.includes("profile_effect") || finalChanges.includes("profileEffect")) {
+                const [beforeFx, afterFx] = await Promise.all([
+                    enrichAndArchiveProfileEffect(userId, stableBefore.profileEffectData ?? stableBefore.profileEffect),
+                    enrichAndArchiveProfileEffect(userId, after.profileEffectData ?? after.profileEffect),
+                ]);
+                if (beforeFx) {
+                    beforeSnap = {
+                        ...beforeSnap,
+                        profileEffectData: beforeFx,
+                        profileEffect: beforeFx.id ?? beforeSnap.profileEffect,
+                    };
+                }
+                if (afterFx) {
+                    afterSnap = {
+                        ...afterSnap,
+                        profileEffectData: afterFx,
+                        profileEffect: afterFx.id ?? afterSnap.profileEffect,
+                    };
+                }
+            }
+            const profileChanges: ProfileChanges = {
+                changedFields: finalChanges,
+                before: beforeSnap,
+                after: afterSnap,
+            };
 
-        addPresenceLog(entry);
-        opts.onLog?.(entry);
+            const entry = {
+                userId,
+                username,
+                discriminator,
+                timestamp: Date.now(),
+                previousStatus: undefined,
+                currentStatus: null,
+                guildId: undefined,
+                clientStatus: {},
+                activitySummary: `profile:${finalChanges.join(",")}`,
+                clientStatusSummary: undefined,
+                guildName: null,
+                type: "profile" as const,
+                profileChanges,
+            } as PresenceLogEntry;
+
+            addPresenceLog(entry);
+            opts.onLog?.(entry);
+        })();
     }, PROFILE_LOG_DEBOUNCE_MS);
 
     pendingProfileLogs.set(userId, {
@@ -745,6 +1231,7 @@ export function getProfileChangeLabel(field: string): string {
         connected_accounts: "Connected Accounts",
         mutual_friends_count: "Mutual Friends",
         mutual_guilds: "Mutual Servers",
+        mutual_guilds_count: "Mutual Servers",
         badges: "Badges",
         pronouns: "Pronouns",
         theme_colors: "Profile Colors",
@@ -753,6 +1240,9 @@ export function getProfileChangeLabel(field: string): string {
         nameplate: "Nameplate",
         profile_effect: "Profile Effect",
         profileEffect: "Profile Effect",
+        // Kept for old logs that still contain this field — new frame events are not logged
+        profile_frame: "Profile Frame",
+        profileFrame: "Profile Frame",
     };
     return labels[field] ?? field;
 }

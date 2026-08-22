@@ -19,8 +19,12 @@ import { getWhitelistedIds, settings } from "./settings";
 import {
     activityLogCooldowns,
     addPresenceLog,
+    archiveProfileAssets,
+    captureCustomStatusEmoji,
     captureProfileSnapshot,
+    customStatusEmojiFingerprint,
     detectProfileChanges,
+    extractMutualsFromProfilePayload,
     getProfileChangeLabel,
     queueProfileChangeLog,
     getUserConfig,
@@ -172,6 +176,7 @@ async function stalkUser(id: string) {
                     avatarDecoration: cosmetics.avatarDecoration,
                     avatarDecorationData: cosmetics.avatarDecorationData,
                     customStatus,
+                    customStatusEmoji: captureCustomStatusEmoji(customStatusActivity),
                     pronouns: (userProfile as any).pronouns ?? null,
                     theme_colors: cosmetics.theme_colors,
                     nameplate: cosmetics.nameplate,
@@ -180,6 +185,8 @@ async function stalkUser(id: string) {
                     profileEffectData: cosmetics.profileEffectData,
                 };
                 await persistProfileSnapshot(id, currentSnapshot);
+                // Seed local avatar/banner/effect archive while CDN still has them
+                void archiveProfileAssets(id, currentSnapshot);
                 logger.info(`Profile fetched for ${u.username}, baseline established (cosmetics: deco=${!!cosmetics.avatarDecoration} nameplate=${!!cosmetics.nameplate})`);
             }
         }
@@ -374,13 +381,25 @@ export default definePlugin({
                 const isOnline = status && status !== "offline" && status !== "invisible";
                 const currentActivities = PresenceStore.getActivities(id) || [];
                 const customStatusActivity = currentActivities.find(a => a?.type === 4);
-                const customStatus = isOnline ? (customStatusActivity?.state ?? null) : (prev?.customStatus ?? null);
+                const customStatus = isOnline
+                    ? (customStatusActivity ? (customStatusActivity.state ?? null) : null)
+                    : (prev?.customStatus ?? null);
+                const customStatusEmoji = isOnline
+                    ? (customStatusActivity ? captureCustomStatusEmoji(customStatusActivity) : null)
+                    : (prev?.customStatusEmoji ?? null);
 
                 // Merge user + full profile payload for cosmetics (frame, deco, nameplate, effect, theme)
                 const cosmetics = extractProfileCosmetics(
                     { ...cur, ...user, collectibles: user.collectibles ?? (cur as any).collectibles },
                     { ...userProfile, user_profile: profileData, ...profileData }
                 );
+
+                // Prefer top-level fetch payload; fall back to nested user_profile.
+                // Missing keys stay undefined so lean follow-ups don't wipe mutuals.
+                const mutuals = {
+                    ...extractMutualsFromProfilePayload(profileData),
+                    ...extractMutualsFromProfilePayload(userProfile),
+                };
 
                 const newSnapshot: ProfileSnapshot = {
                     username: cur.username,
@@ -397,15 +416,21 @@ export default definePlugin({
                     theme_colors: cosmetics.theme_colors ?? profileData.theme_colors ?? null,
                     emoji: profileData.emoji ?? null,
                     customStatus,
+                    customStatusEmoji,
                     nameplate: cosmetics.nameplate,
                     nameplateData: cosmetics.nameplateData,
                     profileEffect: cosmetics.profileEffect,
                     profileEffectData: cosmetics.profileEffectData,
+                    mutual_friends_count: mutuals.mutual_friends_count,
+                    mutual_guilds_count: mutuals.mutual_guilds_count,
+                    mutual_friends: mutuals.mutual_friends,
+                    mutual_guilds: mutuals.mutual_guilds,
                 };
                 const mergedSnapshot = mergeProfileSnapshots(prev, newSnapshot);
 
                 if (!prev) {
                     await persistProfileSnapshot(id, mergedSnapshot);
+                    void archiveProfileAssets(id, mergedSnapshot);
                     return;
                 }
                 const changes = detectProfileChanges(prev, mergedSnapshot);
@@ -474,6 +499,9 @@ export default definePlugin({
                 }
                 if (!isOnline && prev.customStatus !== undefined) {
                     capturedSnapshot.customStatus = prev.customStatus;
+                    if (prev.customStatusEmoji !== undefined) {
+                        capturedSnapshot.customStatusEmoji = prev.customStatusEmoji;
+                    }
                 }
                 const mergedSnapshot = mergeProfileSnapshots(prev, capturedSnapshot);
                 const changes = detectProfileChanges(prev, mergedSnapshot);
@@ -682,6 +710,11 @@ export default definePlugin({
             loadUserConfigs()
         ]);
 
+        // Backfill local avatar/banner archive for already-tracked snapshots
+        for (const [uid, snap] of lastKnownUsers) {
+            void archiveProfileAssets(uid, snap);
+        }
+
         this.presenceListener = async () => {
             try {
                 const whitelistedIds = getWhitelistedIds();
@@ -722,7 +755,10 @@ export default definePlugin({
                     const previousActivities = lastKnownActivities.get(userId) || [];
                     const currentCustomStatus = currentActivities.find(a => a?.type === 4);
                     const previousCustomStatus = previousActivities.find(a => a?.type === 4);
-                    const customStatusChanged = currentCustomStatus?.state !== previousCustomStatus?.state;
+                    const customStatusChanged =
+                        currentCustomStatus?.state !== previousCustomStatus?.state
+                        || customStatusEmojiFingerprint(captureCustomStatusEmoji(currentCustomStatus))
+                            !== customStatusEmojiFingerprint(captureCustomStatusEmoji(previousCustomStatus));
 
                     const filteredCurrentActivities = currentActivities.filter(a => a?.type !== 4);
                     const filteredPreviousActivities = previousActivities.filter(a => a?.type !== 4);

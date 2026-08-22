@@ -239,3 +239,225 @@ export async function writeMergedLogs(
     await writeFile(filePath, content, "utf-8");
     return merged.length;
 }
+
+// ── Profile asset archive (avatars / banners) ─────────────────────────
+
+export type ProfileAssetKind = "avatar" | "banner";
+
+function assetExt(hash: string): "gif" | "png" {
+    return hash.startsWith("a_") ? "gif" : "png";
+}
+
+function assetFileName(kind: ProfileAssetKind, hash: string): string {
+    return `${kind}_${hash}.${assetExt(hash)}`;
+}
+
+function cdnUrl(userId: string, kind: ProfileAssetKind, hash: string): string {
+    const ext = assetExt(hash);
+    if (kind === "avatar") {
+        return `https://cdn.discordapp.com/avatars/${userId}/${hash}.${ext}?size=256`;
+    }
+    return `https://cdn.discordapp.com/banners/${userId}/${hash}.${ext}?size=600`;
+}
+
+async function findExistingAssetPath(
+    userId: string,
+    kind: ProfileAssetKind,
+    hash: string
+): Promise<string | null> {
+    const name = assetFileName(kind, hash);
+    for (const dir of await getReadableLogDirs()) {
+        const filePath = path.join(dir, "assets", userId, name);
+        try {
+            const info = await stat(filePath);
+            if (info.isFile() && info.size > 0) return filePath;
+        } catch { /* missing */ }
+    }
+    return null;
+}
+
+async function downloadToBuffer(url: string): Promise<Buffer> {
+    // Electron main has global fetch in modern builds
+    const res = await fetch(url);
+    if (!res.ok) {
+        throw new Error(`CDN ${res.status} for ${url}`);
+    }
+    const ab = await res.arrayBuffer();
+    return Buffer.from(ab);
+}
+
+/**
+ * Download avatar/banner from Discord CDN into
+ *   {logsDir}/assets/{userId}/{kind}_{hash}.{png|gif}
+ * Idempotent — skips if a non-empty file already exists anywhere we read from.
+ */
+export async function saveProfileAsset(
+    _event: IpcMainInvokeEvent,
+    userId: string,
+    kind: ProfileAssetKind,
+    hash: string
+): Promise<boolean> {
+    if (!userId || !hash || (kind !== "avatar" && kind !== "banner")) return false;
+
+    const existing = await findExistingAssetPath(userId, kind, hash);
+    if (existing) return true;
+
+    const logsDir = await getPrimaryLogsDir();
+    const dir = path.join(logsDir, "assets", userId);
+    await mkdir(dir, { recursive: true });
+    const filePath = path.join(dir, assetFileName(kind, hash));
+
+    try {
+        const buf = await downloadToBuffer(cdnUrl(userId, kind, hash));
+        if (!buf.length) return false;
+        await writeFile(filePath, buf);
+        return true;
+    } catch (e) {
+        console.error("saveProfileAsset failed", userId, kind, hash, e);
+        return false;
+    }
+}
+
+/**
+ * Read a local archived asset as a CSP-safe data URL, or null if missing.
+ */
+export async function readProfileAsset(
+    _event: IpcMainInvokeEvent,
+    userId: string,
+    kind: ProfileAssetKind,
+    hash: string
+): Promise<string | null> {
+    if (!userId || !hash || (kind !== "avatar" && kind !== "banner")) return null;
+
+    const filePath = await findExistingAssetPath(userId, kind, hash);
+    if (!filePath) return null;
+
+    try {
+        const buf = await readFile(filePath);
+        if (!buf.length) return null;
+        const mime = assetExt(hash) === "gif" ? "image/gif" : "image/png";
+        return `data:${mime};base64,${buf.toString("base64")}`;
+    } catch (e) {
+        console.error("readProfileAsset failed", userId, kind, hash, e);
+        return null;
+    }
+}
+
+export async function hasProfileAsset(
+    _event: IpcMainInvokeEvent,
+    userId: string,
+    kind: ProfileAssetKind,
+    hash: string
+): Promise<boolean> {
+    if (!userId || !hash) return false;
+    return !!(await findExistingAssetPath(userId, kind, hash));
+}
+
+// ── Arbitrary URL assets (profile effects from collectibles-shop / assets/content) ──
+
+function urlAssetFileName(kind: string, id: string): string {
+    // Strip path-unsafe chars; keep snowflake / hash ids intact
+    const safeKind = String(kind).replace(/[^a-z0-9_-]/gi, "") || "asset";
+    const safeId = String(id).replace(/[^a-zA-Z0-9_-]/g, "");
+    return `${safeKind}_${safeId}.img`;
+}
+
+async function findExistingUrlAssetPath(userId: string, kind: string, id: string): Promise<string | null> {
+    const name = urlAssetFileName(kind, id);
+    for (const dir of await getReadableLogDirs()) {
+        const filePath = path.join(dir, "assets", userId, name);
+        try {
+            const info = await stat(filePath);
+            if (info.isFile() && info.size > 0) return filePath;
+        } catch { /* missing */ }
+    }
+    return null;
+}
+
+function mimeFromBuffer(buf: Buffer, contentType?: string | null): string {
+    const ct = (contentType || "").split(";")[0].trim().toLowerCase();
+    if (ct.startsWith("image/")) return ct;
+    if (buf.length >= 3 && buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return "image/gif";
+    if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return "image/png";
+    if (buf.length >= 12 && buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WEBP") return "image/webp";
+    return "image/png";
+}
+
+/**
+ * Download an arbitrary image URL into
+ *   {logsDir}/assets/{userId}/{kind}_{id}.img
+ * Used for profile effects (collectibles-shop / assets/content URLs).
+ */
+export async function saveUrlAsset(
+    _event: IpcMainInvokeEvent,
+    userId: string,
+    kind: string,
+    id: string,
+    url: string
+): Promise<boolean> {
+    if (!userId || !kind || !id || !url || !/^https?:\/\//i.test(url)) return false;
+
+    const existing = await findExistingUrlAssetPath(userId, kind, id);
+    if (existing) return true;
+
+    const logsDir = await getPrimaryLogsDir();
+    const dir = path.join(logsDir, "assets", userId);
+    await mkdir(dir, { recursive: true });
+    const filePath = path.join(dir, urlAssetFileName(kind, id));
+
+    try {
+        const res = await fetch(url, {
+            headers: {
+                "User-Agent": "Mozilla/5.0 (compatible; ActivityTracker/1.0)",
+            },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+        const ab = await res.arrayBuffer();
+        const buf = Buffer.from(ab);
+        if (!buf.length) return false;
+        await writeFile(filePath, buf);
+        // Sidecar mime for correct data-URL reads
+        const mime = mimeFromBuffer(buf, res.headers.get("content-type"));
+        await writeFile(filePath + ".mime", mime, "utf-8");
+        return true;
+    } catch (e) {
+        console.error("saveUrlAsset failed", userId, kind, id, e);
+        return false;
+    }
+}
+
+export async function readUrlAsset(
+    _event: IpcMainInvokeEvent,
+    userId: string,
+    kind: string,
+    id: string
+): Promise<string | null> {
+    if (!userId || !kind || !id) return null;
+    const filePath = await findExistingUrlAssetPath(userId, kind, id);
+    if (!filePath) return null;
+
+    try {
+        const buf = await readFile(filePath);
+        if (!buf.length) return null;
+        let mime = "image/png";
+        try {
+            mime = (await readFile(filePath + ".mime", "utf-8")).trim() || mime;
+        } catch {
+            mime = mimeFromBuffer(buf);
+        }
+        return `data:${mime};base64,${buf.toString("base64")}`;
+    } catch (e) {
+        console.error("readUrlAsset failed", userId, kind, id, e);
+        return null;
+    }
+}
+
+export async function hasUrlAsset(
+    _event: IpcMainInvokeEvent,
+    userId: string,
+    kind: string,
+    id: string
+): Promise<boolean> {
+    if (!userId || !kind || !id) return false;
+    return !!(await findExistingUrlAssetPath(userId, kind, id));
+}

@@ -1,7 +1,7 @@
 
 import type { SVGProps } from "react";
 import { Tooltip } from "@webpack/common";
-import { formatTimestamp } from "../utils";
+import { formatTimestamp, getPlatformLabel } from "../utils";
 
 function makeDeviceIcon(path: string, opts?: { viewBox?: string; width?: number; height?: number; }) {
     return () => (
@@ -16,12 +16,17 @@ function makeDeviceIcon(path: string, opts?: { viewBox?: string; width?: number;
     );
 }
 
+const consoleIcon = makeDeviceIcon("M14.8 2.7 9 3.1V47h3.3c1.7 0 6.2.3 10 .7l6.7.6V2l-4.2.2c-2.4.1-6.9.3-10 .5zm1.8 6.4c1 1.7-1.3 3.6-2.7 2.2C12.7 10.1 13.5 8 15 8c.5 0 1.2.5 1.6 1.1zM16 33c0 6-.4 10-1 10s-1-4-1-10 .4-10 1-10 1 4 1 10zm15-8v23.3l3.8-.7c2-.3 4.7-.6 6-.6H43V3h-2.2c-1.3 0-4-.3-6-.6L31 1.7V25z", { viewBox: "0 0 50 50" });
+/** Simple VR headset glyph */
+const vrIcon = makeDeviceIcon("M20.5 7h-17C2.67 7 2 7.67 2 8.5v7C2 16.33 2.67 17 3.5 17H8l1.5 2h5L16 17h4.5c.83 0 1.5-.67 1.5-1.5v-7C22 7.67 21.33 7 20.5 7zM7.5 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm9 0c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z");
+
 export const DeviceIcons = {
     desktop: makeDeviceIcon("M4 2.5c-1.103 0-2 .897-2 2v11c0 1.104.897 2 2 2h7v2H7v2h10v-2h-4v-2h7c1.103 0 2-.896 2-2v-11c0-1.103-.897-2-2-2H4Zm16 2v9H4v-9h16Z"),
     web: makeDeviceIcon("M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93Zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39Z"),
     mobile: makeDeviceIcon("M 187 0 L 813 0 C 916.277 0 1000 83.723 1000 187 L 1000 1313 C 1000 1416.277 916.277 1500 813 1500 L 187 1500 C 83.723 1500 0 1416.277 0 1313 L 0 187 C 0 83.723 83.723 0 187 0 Z M 125 1000 L 875 1000 L 875 250 L 125 250 Z M 500 1125 C 430.964 1125 375 1180.964 375 1250 C 375 1319.036 430.964 1375 500 1375 C 569.036 1375 625 1319.036 625 1250 C 625 1180.964 569.036 1125 500 1125 Z", { viewBox: "0 0 1000 1500", width: 17, height: 17 }),
-    embedded: makeDeviceIcon("M14.8 2.7 9 3.1V47h3.3c1.7 0 6.2.3 10 .7l6.7.6V2l-4.2.2c-2.4.1-6.9.3-10 .5zm1.8 6.4c1 1.7-1.3 3.6-2.7 2.2C12.7 10.1 13.5 8 15 8c.5 0 1.2.5 1.6 1.1zM16 33c0 6-.4 10-1 10s-1-4-1-10 .4-10 1-10 1 4 1 10zm15-8v23.3l3.8-.7c2-.3 4.7-.6 6-.6H43V3h-2.2c-1.3 0-4-.3-6-.6L31 1.7V25z", { viewBox: "0 0 50 50" }),
-    console: makeDeviceIcon("M14.8 2.7 9 3.1V47h3.3c1.7 0 6.2.3 10 .7l6.7.6V2l-4.2.2c-2.4.1-6.9.3-10 .5zm1.8 6.4c1 1.7-1.3 3.6-2.7 2.2C12.7 10.1 13.5 8 15 8c.5 0 1.2.5 1.6 1.1zM16 33c0 6-.4 10-1 10s-1-4-1-10 .4-10 1-10 1 4 1 10zm15-8v23.3l3.8-.7c2-.3 4.7-.6 6-.6H43V3h-2.2c-1.3 0-4-.3-6-.6L31 1.7V25z", { viewBox: "0 0 50 50" })
+    embedded: consoleIcon,
+    console: consoleIcon,
+    vr: vrIcon,
 };
 
 export function StalkerIcon() {
@@ -272,7 +277,7 @@ function statusMeta(status?: string | null) {
     return STATUS_META[key] ?? STATUS_META.offline;
 }
 
-const ALL_PLATFORMS = ["desktop", "mobile", "web"] as const;
+const ALL_PLATFORMS = ["desktop", "mobile", "web", "embedded", "vr"] as const;
 
 export function DeviceBadges({
     clientStatus,
@@ -311,7 +316,7 @@ export function DeviceBadges({
                     const isOngoing = !offline && timing.end == null;
                     const startedStr = timing.start ? formatTimestamp(timing.start) : "—";
                     const stoppedStr = timing.end ? formatTimestamp(timing.end) : offline ? "—" : "Ongoing";
-                    const tooltipText = `${timing.device.toUpperCase()} · ${meta.label}\nStarted: ${startedStr}\nStopped: ${stoppedStr}`;
+                    const tooltipText = `${getPlatformLabel(timing.device)} · ${meta.label}\nStarted: ${startedStr}\nStopped: ${stoppedStr}`;
 
                     return (
                         <Tooltip key={`${timing.device}-${timing.start}`} text={tooltipText}>
@@ -371,7 +376,7 @@ export function DeviceBadges({
                 const meta = statusMeta(status);
                 const isOngoing = !offline;
                 return (
-                    <Tooltip key={`${device}-${status}`} text={`${device.toUpperCase()} · ${meta.label}`}>
+                    <Tooltip key={`${device}-${status}`} text={`${getPlatformLabel(device)} · ${meta.label}`}>
                         {tooltipProps => (
                             <span
                                 {...tooltipProps}

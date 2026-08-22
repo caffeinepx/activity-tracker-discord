@@ -27,8 +27,9 @@ A Vencord / Equicord plugin that logs presence, activity, profile changes, and m
 - Island layout (sidebar + main panel)
 - Separate views for Presence, Profile, Messages, and Rich Presence
 - Day-by-day navigation
-- Platform filter (Desktop / Mobile / Web)
+- Platform filter (Desktop / Mobile / Web / Console / VR)
 - Live platform indicators
+- Overall user filter (toolbar eye multi-select)
 - Per-user or combined history
 - Day timeline + stats charts
 
@@ -37,7 +38,7 @@ A Vencord / Equicord plugin that logs presence, activity, profile changes, and m
 - Applies to history, timeline, stats, and settings
 
 **Presence intelligence**
-- Platform-specific timings and duration chips
+- Platform-specific timings and duration chips (incl. Console + VR)
 - Platform-aware notifications
 - “Potentially invisible” mobile detection
 
@@ -48,12 +49,18 @@ A Vencord / Equicord plugin that logs presence, activity, profile changes, and m
 
 **Profile & Cosmetics**
 - Activity Tracker section on user profiles
-- Sidebar cosmetics island (banner, avatar decoration, nameplate, theme colors)
+- Sidebar cosmetics island (banner, avatar decoration, nameplate, theme colors, effect shimmer)
+- Profile-change hover preview: thicker theme border, nameplate-behind-name, deco on PFP only
+- Profile effect overlay from Discord shop media (archived locally)
+- Mutual friends/servers chips + connection platform icons
+- Bio custom emoji + `<t:…>` timestamps; custom status emoji logged + shown
+- Solid banner color fallback (no rainbow default)
 
 **Log safety**
 - Append-only desktop logs (no more wiping history)
 - Import / Export (export is per-user)
 - Loads both new and legacy log folders
+- Local avatar/banner/effect archive under `{logsDir}/assets/{userId}/` (jsonl stays hash-only)
 
 **UI Style Modes**
 1. Full custom UI (plugin colors)
@@ -94,6 +101,15 @@ A Vencord / Equicord plugin that logs presence, activity, profile changes, and m
 ---
 
 ## Changelog
+
+### 2026-08-22 — Profile preview revamp, asset archive, platforms & mutuals
+- Local avatar / banner / profile-effect archive beside logs (`assets/{userId}/…`)
+- Profile-change hover preview redesign (theme ring, nameplate, effects overlay, mutuals, connections)
+- Custom status emoji logging + bio emoji / Discord timestamp rendering
+- Console + VR platforms in logging, filters, timeline, and tooltips
+- Mutual friends/servers change logging with named chips in preview
+- Overall tracked-user filter in the history toolbar
+- Profile frames experimented with, then reverted (not tracked)
 
 ### 2026-08-11 — Profile cosmetics, safer logs, import
 - Sidebar cosmetics island (banner, decoration, nameplate, theme)

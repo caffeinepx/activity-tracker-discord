@@ -67,7 +67,7 @@ export function resolveUserCosmeticsSnapshot(userId: string): ProfileSnapshot | 
 /**
  * Mini Discord-style profile island for the tracker sidebar.
  * Banner, avatar + decoration, theme gradient + ring, nameplate.
- * Profile frames are tracked in history only — not rendered here.
+ * Profile frames are not tracked/rendered (reverted).
  */
 export function CosmeticsUserIsland({
     userId,
@@ -102,6 +102,8 @@ export function CosmeticsUserIsland({
             ? String(snap.banner_color)
             : `#${Number(snap.banner_color).toString(16).padStart(6, "0")}`)
         : null;
+    // Solid banner_color when no image; dark fallback — never the old rainbow / theme fill
+    const bannerFallback = bannerColor || "#1e1f22";
 
     const shellClass = [
         "stalker-sidebar-user",
@@ -117,13 +119,7 @@ export function CosmeticsUserIsland({
             <div className="stalker-cosmetics-island__inner">
                 <div
                     className="stalker-cosmetics-island__banner"
-                    style={
-                        !bUrl && bannerColor
-                            ? { background: bannerColor }
-                            : !bUrl && hasTheme
-                                ? { background: `linear-gradient(135deg, ${hexes![0]}, ${hexes![1]})` }
-                                : undefined
-                    }
+                    style={!bUrl ? { background: bannerFallback } : undefined}
                 >
                     {bUrl && (
                         <img
@@ -199,41 +195,10 @@ export function CosmeticsUserIsland({
     );
 }
 
-/** Compact cosmetics preview in profile-change tooltips (no profile frames). */
-export function SnapshotCosmeticsExtras({
-    snapshot,
-}: {
-    snapshot: ProfileSnapshot;
-    userId?: string;
-}) {
-    const decoUrl = snapshot.avatarDecorationData
-        ? getAvatarDecorationUrl(snapshot.avatarDecorationData)
-        : null;
-    const nameplateUrl = getNameplateStaticUrl(snapshot.nameplateData);
-    const hexes = getThemeColorHexes(snapshot.theme_colors);
-
-    if (!decoUrl && !nameplateUrl && !hexes) return null;
-
-    return (
-        <div className="stalker-profile-card__cosmetics">
-            {hexes && (
-                <div
-                    className="stalker-profile-card__theme-swatch"
-                    title="Profile theme"
-                    style={{ background: `linear-gradient(135deg, ${hexes[0]}, ${hexes[1]})` }}
-                />
-            )}
-            {decoUrl && (
-                <img src={decoUrl} alt="" className="stalker-profile-card__cosmetic-thumb" title="Avatar decoration" />
-            )}
-            {nameplateUrl && (
-                <img
-                    src={nameplateUrl}
-                    alt=""
-                    className="stalker-profile-card__cosmetic-thumb stalker-profile-card__cosmetic-thumb--wide"
-                    title="Nameplate"
-                />
-            )}
-        </div>
-    );
+/**
+ * @deprecated ProfileCard now renders nameplate/deco/effect inline.
+ * Kept as a no-op export so older imports don't break.
+ */
+export function SnapshotCosmeticsExtras(_props: { snapshot: ProfileSnapshot; userId?: string; }) {
+    return null;
 }

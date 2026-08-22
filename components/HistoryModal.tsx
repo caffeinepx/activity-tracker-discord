@@ -4,7 +4,7 @@ import { Button } from "@components/Button";
 import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalProps, ModalRoot, ModalSize, openModal } from "@utils/modal";
 import { GuildStore, NavigationRouter, PresenceStore, ScrollerThin, Text, Tooltip, useEffect, useMemo, UserStore, useState } from "@webpack/common";
 
-import { getScreenshotRedactMode, getUiModeClass, isDebugEnabled, settings, type ScreenshotRedactMode } from "../settings";
+import { getScreenshotRedactMode, getUiModeClass, getWhitelistedIds, isDebugEnabled, settings, type ScreenshotRedactMode } from "../settings";
 import { clearProfileSnapshots, deleteUserLogs, getNativeHelper, importPresenceLogsJson, isDesktopEnv, loadPresenceLogs, presenceLogListeners, presenceLogs } from "../store";
 import { PresenceLogEntry } from "../types";
 import {
@@ -217,7 +217,7 @@ function renderPresenceStatuses(entry: PresenceLogEntry) {
     const deviceTimings = (entry as any).deviceTimings as Array<{ device: string; status: string; start: number; end?: number | null }> | undefined;
 
     if (Array.isArray(deviceTimings) && deviceTimings.length > 0) {
-        const devices = ["desktop", "mobile", "web"];
+        const devices = ["desktop", "mobile", "web", "embedded", "vr"];
         const transitions: React.ReactNode[] = [];
 
         for (const device of devices) {
@@ -234,7 +234,7 @@ function renderPresenceStatuses(entry: PresenceLogEntry) {
                         <div key={device} className="stalker-status-transition">
                             <span className="stalker-status-transition__device">
                                 <Icon />
-                                <span>{device}</span>
+                                <span>{getPlatformLabel(device)}</span>
                             </span>
                             <span className={getStatusClass(prevStatus)}>{getStatusLabel(prevStatus)}</span>
                             <span className="stalker-log-entry__arrow">→</span>
@@ -355,6 +355,144 @@ function IdentityName({
     );
 }
 
+/**
+ * Combined-mode only: multi-select which tracked users appear in the feed / timeline.
+ * `includedUserIds === null` means “all tracked” (default, same as before this feature).
+ */
+function UserFilterDropdown({
+    trackedIds,
+    includedUserIds,
+    onChange,
+    screenshotMode,
+    redactMode,
+}: {
+    trackedIds: string[];
+    includedUserIds: string[] | null;
+    onChange: (next: string[] | null) => void;
+    screenshotMode: boolean;
+    redactMode: ScreenshotRedactMode;
+}) {
+    const [open, setOpen] = useState(false);
+    const { whitelistedIds } = settings.use(["whitelistedIds"]);
+    void whitelistedIds; // re-render if track list changes while modal is open
+
+    const ids = trackedIds.length ? trackedIds : getWhitelistedIds();
+    const isAll = includedUserIds == null || (ids.length > 0 && includedUserIds.length === ids.length && ids.every(id => includedUserIds.includes(id)));
+    const selectedCount = isAll ? ids.length : (includedUserIds?.length ?? 0);
+
+    const label = (() => {
+        if (ids.length === 0) return "No tracked users";
+        if (isAll) return "All tracked";
+        if (selectedCount === 0) return "No users";
+        if (selectedCount === 1) {
+            const id = (includedUserIds ?? ids)[0];
+            const u = UserStore.getUser(id);
+            const name = (u as any)?.globalName || (u as any)?.global_name || u?.username || id;
+            return redactDisplayName(name, redactMode, screenshotMode);
+        }
+        return `${selectedCount} users`;
+    })();
+
+    const isChecked = (id: string) => isAll || (includedUserIds?.includes(id) ?? false);
+
+    const toggle = (id: string) => {
+        const currentlyAll = includedUserIds == null || (ids.length > 0 && includedUserIds.length === ids.length && ids.every(x => includedUserIds.includes(x)));
+        let next: string[];
+        if (currentlyAll) {
+            next = ids.filter(x => x !== id);
+        } else {
+            const set = new Set(includedUserIds ?? []);
+            if (set.has(id)) set.delete(id);
+            else set.add(id);
+            next = ids.filter(x => set.has(x));
+        }
+        // Collapse back to null when everything is selected again
+        if (next.length === ids.length) onChange(null);
+        else onChange(next);
+    };
+
+    return (
+        <div className="stalker-user-filter">
+            <button
+                type="button"
+                className={`stalker-user-filter__btn${open ? " stalker-user-filter__btn--open" : ""}${!isAll ? " stalker-user-filter__btn--active" : ""}`}
+                onClick={() => setOpen(v => !v)}
+                aria-expanded={open}
+                aria-haspopup="listbox"
+                title="Filter tracked users in this view"
+            >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                </svg>
+                <span className="stalker-user-filter__label">{label}</span>
+                <span className="stalker-user-filter__caret">▾</span>
+            </button>
+            {open && (
+                <>
+                    <div className="stalker-user-filter__backdrop" onClick={() => setOpen(false)} aria-hidden />
+                    <div className="stalker-user-filter__menu" role="listbox" aria-multiselectable>
+                        <div className="stalker-user-filter__actions">
+                            <button type="button" className="stalker-user-filter__action" onClick={() => onChange(null)}>
+                                All
+                            </button>
+                            <button type="button" className="stalker-user-filter__action" onClick={() => onChange([])}>
+                                None
+                            </button>
+                        </div>
+                        {ids.length === 0 ? (
+                            <div className="stalker-user-filter__empty">Track someone to filter here</div>
+                        ) : (
+                            ids.map(id => {
+                                const u = UserStore.getUser(id);
+                                const display = (u as any)?.globalName || (u as any)?.global_name || u?.username || id;
+                                const tag = u?.username ? `@${u.username}` : "";
+                                const checked = isChecked(id);
+                                return (
+                                    <button
+                                        key={id}
+                                        type="button"
+                                        role="option"
+                                        aria-selected={checked}
+                                        className={`stalker-user-filter__row${checked ? " stalker-user-filter__row--on" : ""}`}
+                                        onClick={() => toggle(id)}
+                                    >
+                                        <span className={`stalker-user-filter__check${checked ? " stalker-user-filter__check--on" : ""}`} aria-hidden>
+                                            {checked ? "✓" : ""}
+                                        </span>
+                                        <UserAvatar
+                                            userId={id}
+                                            username={u?.username}
+                                            screenshotMode={screenshotMode}
+                                            redactMode={redactMode}
+                                            sizeClass="stalker-user-filter__avatar"
+                                        />
+                                        <span className="stalker-user-filter__meta">
+                                            <IdentityName
+                                                text={redactDisplayName(display, redactMode, screenshotMode)}
+                                                screenshotMode={screenshotMode}
+                                                redactMode={redactMode}
+                                                className="stalker-user-filter__name"
+                                            />
+                                            {tag && (
+                                                <IdentityName
+                                                    text={redactTag(u?.username, redactMode, screenshotMode)}
+                                                    screenshotMode={screenshotMode}
+                                                    redactMode={redactMode}
+                                                    className="stalker-user-filter__tag"
+                                                />
+                                            )}
+                                        </span>
+                                    </button>
+                                );
+                            })
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
 function ConfirmDeleteModal({ modalProps, onConfirm }: { modalProps: ModalProps; onConfirm: () => void; }) {
     return (
         <ModalRoot {...modalProps} size={ModalSize.SMALL}>
@@ -453,8 +591,12 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
     const [redactMode, setRedactMode] = useState<ScreenshotRedactMode>(() => getScreenshotRedactMode());
     const [showSsMenu, setShowSsMenu] = useState(false);
     const filterUserId = initialUserId ?? null;
-    const { uiMode } = settings.use(["uiMode"]);
+    const isCombinedMode = !filterUserId;
+    /** null = all tracked (default). Explicit string[] = subset (may be empty). Combined mode only. */
+    const [includedUserIds, setIncludedUserIds] = useState<string[] | null>(null);
+    const { uiMode, whitelistedIds } = settings.use(["uiMode", "whitelistedIds"]);
     const uiModeClass = getUiModeClass(uiMode as any);
+    const trackedIds = useMemo(() => getWhitelistedIds(), [whitelistedIds]);
 
     const setRedactModePersist = (mode: ScreenshotRedactMode) => {
         setRedactMode(mode);
@@ -474,7 +616,7 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
 
     const [selectedSection, setSelectedSection] = useState<SectionId>("presence");
     const [dayOffset, setDayOffset] = useState(0);
-    const [platformFilter, setPlatformFilter] = useState<"all" | "desktop" | "mobile" | "web">("all");
+    const [platformFilter, setPlatformFilter] = useState<"all" | "desktop" | "mobile" | "web" | "embedded" | "vr">("all");
     /** logs = feed · insights = day timeline + stats */
     const [mainView, setMainView] = useState<"logs" | "insights">("logs");
 
@@ -509,7 +651,12 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
         return () => { presenceLogListeners.delete(updateLogs); };
     }, []);
 
-    const forUser = (entry: PresenceLogEntry) => !filterUserId || entry.userId === filterUserId;
+    const forUser = (entry: PresenceLogEntry) => {
+        if (filterUserId) return entry.userId === filterUserId;
+        // Combined mode: null → all tracked; [] → none; else subset
+        if (includedUserIds == null) return true;
+        return includedUserIds.includes(entry.userId);
+    };
 
     const presenceItems = logsForDay.filter(e =>
         forUser(e)
@@ -569,18 +716,20 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
     const canOpenNativeLogs = isDesktopEnv() || !!getNativeHelper();
 
     const exportLogs = () => {
-        // Only the selected user (or everyone if no user filter) — filename used to
-        // claim frierenq while dumping every loaded user into the JSON.
-        const toExport = filterUserId
-            ? logs.filter(entry => entry.userId === filterUserId)
-            : logs;
+        // Per-user modal → that user. Combined → currently included subset (or all).
+        const toExport = logs.filter(forUser);
         if (!toExport.length) return;
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(toExport, null, 2));
         const downloadAnchor = document.createElement("a");
         downloadAnchor.setAttribute("href", dataStr);
-        const nameHint = filterUserId
-            ? `${filterUsername ?? filterUserId}`
-            : "all";
+        let nameHint = "all";
+        if (filterUserId) {
+            nameHint = `${filterUsername ?? filterUserId}`;
+        } else if (includedUserIds != null) {
+            nameHint = includedUserIds.length === 1
+                ? (UserStore.getUser(includedUserIds[0])?.username ?? includedUserIds[0])
+                : `filtered_${includedUserIds.length}`;
+        }
         downloadAnchor.setAttribute("download", `${nameHint}_activity_logs.json`);
         document.body.appendChild(downloadAnchor);
         downloadAnchor.click();
@@ -814,10 +963,25 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
                                 ? "Loading logs…"
                                 : filterUserId
                                     ? `${totalChanges} today · ${totalLoadedForScope} total · ${screenshotMode ? redactTag(filterUsername, redactMode, true) : filterUsername}`
-                                    : `${totalChanges} today · ${totalLoadedForScope} total · all tracked users`}
+                                    : includedUserIds == null
+                                        ? `${totalChanges} today · ${totalLoadedForScope} total · all tracked users`
+                                        : includedUserIds.length === 0
+                                            ? `${totalChanges} today · ${totalLoadedForScope} total · no users selected`
+                                            : includedUserIds.length === 1
+                                                ? `${totalChanges} today · ${totalLoadedForScope} total · 1 user filtered`
+                                                : `${totalChanges} today · ${totalLoadedForScope} total · ${includedUserIds.length} users filtered`}
                         </Text>
                     </div>
                     <div className="stalker-modal-head-actions">
+                        {isCombinedMode && (
+                            <UserFilterDropdown
+                                trackedIds={trackedIds}
+                                includedUserIds={includedUserIds}
+                                onChange={setIncludedUserIds}
+                                screenshotMode={screenshotMode}
+                                redactMode={redactMode}
+                            />
+                        )}
                         <Tooltip text={mainView === "insights" ? "Back to activity log" : "Day timeline & stats"}>
                             {tooltipProps => (
                                 <button
@@ -1036,17 +1200,24 @@ export function PresenceHistoryPanel({ modalProps, initialUserId }: { modalProps
 
                         {mainView === "logs" && selectedSection === "presence" && (
                             <div className="stalker-platform-filters">
-                                {(["all", "desktop", "mobile", "web"] as const).map(p => {
-                                    const Icon = p === "all" ? null : DeviceIcons[p];
+                                {([
+                                    { id: "all" as const, label: "All" },
+                                    { id: "desktop" as const, label: "Desktop" },
+                                    { id: "mobile" as const, label: "Mobile" },
+                                    { id: "web" as const, label: "Web" },
+                                    { id: "embedded" as const, label: "Console" },
+                                    { id: "vr" as const, label: "VR" },
+                                ]).map(({ id, label }) => {
+                                    const Icon = id === "all" ? null : DeviceIcons[id];
                                     return (
                                         <button
-                                            key={p}
+                                            key={id}
                                             type="button"
-                                            className={`stalker-platform-chip${platformFilter === p ? " stalker-platform-chip--active" : ""}`}
-                                            onClick={() => setPlatformFilter(p)}
+                                            className={`stalker-platform-chip${platformFilter === id ? " stalker-platform-chip--active" : ""}`}
+                                            onClick={() => setPlatformFilter(id)}
                                         >
                                             {Icon && <span className="stalker-platform-chip__icon"><Icon /></span>}
-                                            {p.charAt(0).toUpperCase() + p.slice(1)}
+                                            {label}
                                         </button>
                                     );
                                 })}

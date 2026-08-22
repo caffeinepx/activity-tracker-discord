@@ -131,324 +131,6 @@ export function getNameplatePaletteColors(palette?: string | null): { bg: string
     return map[palette.toLowerCase()] ?? null;
 }
 
-/**
- * Discord profile-frame layer CDN (from real client HTML):
- *   https://cdn.discordapp.com/media/v1/collectibles-shop/{productOrSkuId}/{layerId}/static
- *
- * productOrSkuId is the first path segment (shop product / sku).
- * layerId is the layer snowflake on the PROFILE_FRAME collectible item.
- */
-export function getProfileFrameLayerStaticUrl(
-    productId: string | number | null | undefined,
-    layerId: string | number | null | undefined
-): string | null {
-    if (productId == null || layerId == null) return null;
-    const p = String(productId).trim();
-    const l = String(layerId).trim();
-    if (!p || !l) return null;
-    return `https://cdn.discordapp.com/media/v1/collectibles-shop/${p}/${l}/static`;
-}
-
-/**
- * Candidate CDN URLs for a profile frame layer (try in order until one loads).
- * Prefer the official media/v1/collectibles-shop path Discord uses in the client.
- */
-export function getProfileFrameLayerUrlCandidates(
-    layer: {
-        id?: string | number;
-        asset?: string;
-        src?: string;
-        assets?: { static_image_url?: string; animated_image_url?: string; };
-    } | null | undefined,
-    productId?: string | number | null | Array<string | number | null | undefined>
-): string[] {
-    if (!layer) return [];
-    const out: string[] = [];
-    const push = (u?: string | null) => {
-        if (u && !out.includes(u)) out.push(u);
-    };
-
-    const productIds = Array.isArray(productId)
-        ? productId.filter(Boolean).map(String)
-        : productId != null
-            ? [String(productId)]
-            : [];
-
-    // Official Discord client path — highest priority
-    // https://cdn.discordapp.com/media/v1/collectibles-shop/{productId}/{layerId}/static
-    if (layer.id != null) {
-        for (const pid of productIds) {
-            push(getProfileFrameLayerStaticUrl(pid, layer.id));
-        }
-    }
-
-    push(typeof layer.src === "string" && layer.src.startsWith("http") ? layer.src : null);
-    push(layer.assets?.static_image_url);
-    push(layer.assets?.animated_image_url);
-
-    if (typeof layer.asset === "string") {
-        if (layer.asset.startsWith("http")) push(layer.asset);
-        else if (layer.asset.includes("collectibles-shop")) {
-            push(layer.asset.startsWith("http") ? layer.asset : `https://cdn.discordapp.com/${layer.asset.replace(/^\//, "")}`);
-        } else {
-            const path = layer.asset.endsWith("/") ? layer.asset : `${layer.asset}/`;
-            push(`https://cdn.discordapp.com/assets/collectibles/${path}static.png`);
-            push(`https://cdn.discordapp.com/assets/collectibles/${path}asset.png`);
-        }
-    }
-
-    try {
-        const url = tryDiscordCollectiblesAssetUrl(layer);
-        if (url) out.unshift(url);
-    } catch { /* ignore */ }
-
-    return out;
-}
-
-/** @deprecated use getProfileFrameLayerUrlCandidates */
-export function getProfileFrameLayerUrl(
-    layer: { id?: string | number; asset?: string; src?: string; } | null | undefined,
-    productId?: string | number | null
-): string | null {
-    return getProfileFrameLayerUrlCandidates(layer, productId)[0] ?? null;
-}
-
-/**
- * Use Discord client helpers (when present) to resolve collectible asset URLs / products.
- * Best-effort — fails silently outside Discord.
- */
-function tryDiscordCollectiblesAssetUrl(layer: any): string | null {
-    const w = (globalThis as any);
-    const candidates = [
-        w?.Vencord?.Webpack?.Common,
-        w?.findByProps?.("getCollectiblesItemAssetUrl"),
-    ];
-    for (const c of candidates) {
-        const fn = c?.getCollectiblesItemAssetUrl;
-        if (typeof fn === "function") {
-            try {
-                const url = fn(layer);
-                if (typeof url === "string" && url.startsWith("http")) return url;
-            } catch { /* try next */ }
-        }
-    }
-    return null;
-}
-
-/**
- * Resolve the media path product id used in:
- *   /media/v1/collectibles-shop/{THIS}/{layerId}/static
- * Prefer sku_id; some products use store_listing_id / category_sku_id.
- */
-/** All plausible media-path prefix ids for a frame product (try each with layer id). */
-export function getProfileFrameProductIds(frame: any, product?: any): string[] {
-    const raw = [
-        frame?.sku_id,
-        frame?.skuId,
-        product?.sku_id,
-        product?.skuId,
-        product?.product?.sku_id,
-        product?.store_listing_id,
-        product?.storeListingId,
-        product?.product?.store_listing_id,
-        product?.category_sku_id,
-        product?.categorySkuId,
-        product?.product?.category_sku_id,
-        frame?.store_listing_id,
-        frame?.category_sku_id,
-        // Sometimes the product nest is under items[0]
-        product?.items?.[0]?.sku_id,
-        pickItemSku(product),
-    ];
-    const out: string[] = [];
-    for (const c of raw) {
-        if (c == null) continue;
-        const s = String(c).trim();
-        if (s && !out.includes(s)) out.push(s);
-    }
-    return out;
-}
-
-function pickItemSku(product: any): string | null {
-    if (!product) return null;
-    const items = product.items ?? product.product?.items ?? [];
-    if (!Array.isArray(items)) return null;
-    const item = items.find((i: any) => i?.type === 3) ?? items[0];
-    return item?.sku_id ?? item?.skuId ?? null;
-}
-
-export function getProfileFrameProductId(frame: any, product?: any): string | null {
-    return getProfileFrameProductIds(frame, product)[0] ?? null;
-}
-
-/**
- * Look up full PROFILE_FRAME product (layers + overflow) from Discord collectibles catalog by SKU.
- * Equipped users often only carry `{ sku_id }` on collectibles — layers live in the shop catalog.
- */
-export function resolveProfileFrameFromCatalog(frame: any): any | null {
-    if (!frame) return null;
-    if (Array.isArray(frame.layers) && frame.layers.length) return frame;
-
-    const sku = String(frame.sku_id ?? frame.skuId ?? "");
-    if (!sku) return frame;
-
-    try {
-        // Walk known webpack stores / maps Discord exposes for collectibles
-        const stores: any[] = [];
-        try {
-            // @ts-expect-error optional webpack
-            const { findStore } = require("@webpack") as any;
-            if (typeof findStore === "function") {
-                for (const name of [
-                    "CollectiblesCatalogStore",
-                    "CollectiblesPurchaseStore",
-                    "CollectiblesStore",
-                    "SkuStore",
-                ]) {
-                    try {
-                        const s = findStore(name);
-                        if (s) stores.push(s);
-                    } catch { /* missing */ }
-                }
-            }
-        } catch { /* no webpack */ }
-
-        // Also scan window Flux stores if available
-        const flux = (globalThis as any).DiscordFlux ?? (globalThis as any)._dispatcher;
-        void flux;
-
-        for (const store of stores) {
-            const product =
-                store.getProduct?.(sku) ??
-                store.getCollectiblesProduct?.(sku) ??
-                store.get?.(sku) ??
-                store.products?.[sku] ??
-                store.getState?.()?.products?.[sku];
-            if (!product) continue;
-
-            const items = product.items ?? product.products ?? [];
-            const item =
-                (Array.isArray(items) ? items.find((i: any) => i?.type === 3 || i?.layers) : null) ??
-                (Array.isArray(items) ? items[0] : null) ??
-                product;
-
-            if (item?.layers?.length || item?.overflow_top != null || product.layers?.length) {
-                return {
-                    ...frame,
-                    layers: item.layers ?? product.layers ?? frame.layers,
-                    overflow_top: item.overflow_top ?? product.overflow_top ?? frame.overflow_top,
-                    overflow_bottom: item.overflow_bottom ?? product.overflow_bottom ?? frame.overflow_bottom,
-                    overflow_horizontal: item.overflow_horizontal ?? product.overflow_horizontal ?? frame.overflow_horizontal,
-                    inner_width: item.inner_width ?? product.inner_width ?? frame.inner_width,
-                    label: item.label ?? product.name ?? frame.label,
-                    assets: item.assets ?? product.preview_assets ?? frame.assets,
-                };
-            }
-        }
-    } catch {
-        /* catalog unavailable */
-    }
-
-    return frame;
-}
-
-/**
- * CSS overflow vars matching Discord's profileFrameContainer:
- *   --custom-profile-frame-container-width: 1200
- *   --custom-profile-frame-overflow-top / bottom / horizontal
- *
- * Discord designs frames at ~1200px width; we scale to the actual card width.
- */
-export function getProfileFrameOverflowStyle(
-    frame: any,
-    cardWidthPx = 212
-): Record<string, string> {
-    const designW = Number(frame?.inner_width ?? frame?.container_width ?? frame?.containerWidth ?? 1200) || 1200;
-    const top = Number(frame?.overflow_top ?? frame?.overflowTop ?? 298);
-    const bottom = Number(frame?.overflow_bottom ?? frame?.overflowBottom ?? 107);
-    const horizontal = Number(frame?.overflow_horizontal ?? frame?.overflowHorizontal ?? 56);
-    const scale = Math.max(0.12, Math.min(1, cardWidthPx / designW));
-
-    return {
-        "--custom-profile-frame-container-width": String(designW),
-        "--custom-profile-frame-overflow-top": String(Number.isFinite(top) ? top : 298),
-        "--custom-profile-frame-overflow-bottom": String(Number.isFinite(bottom) ? bottom : 107),
-        "--custom-profile-frame-overflow-horizontal": String(Number.isFinite(horizontal) ? horizontal : 56),
-        "--stalker-frame-scale": String(scale),
-        "--stalker-frame-overflow-top": `${(Number.isFinite(top) ? top : 298) * scale}px`,
-        "--stalker-frame-overflow-bottom": `${(Number.isFinite(bottom) ? bottom : 107) * scale}px`,
-        "--stalker-frame-overflow-horizontal": `${(Number.isFinite(horizontal) ? horizontal : 56) * scale}px`,
-        "--stalker-frame-card-width": `${cardWidthPx}px`,
-    };
-}
-
-/**
- * Discord layer placement classes: front/back × top/bottom
- * (from real DOM: profileFrameLayer front top staple, etc.)
- */
-export function getProfileFrameLayerPlacement(
-    layer: any,
-    index: number,
-    total: number
-): { depth: "front" | "back"; edge: "top" | "bottom" } {
-    const anchor = layer?.anchor;
-    const type = layer?.type;
-    const order = layer?.order;
-
-    // String hints
-    const label = `${layer?.label ?? ""} ${layer?.name ?? ""}`.toLowerCase();
-    if (label.includes("bottom")) {
-        return { depth: label.includes("back") ? "back" : "front", edge: "bottom" };
-    }
-    if (label.includes("back")) {
-        return { depth: "back", edge: label.includes("bottom") ? "bottom" : "top" };
-    }
-
-    // Numeric anchor/type (best-effort from client enums)
-    // Common pattern for 3-layer frames: top front, bottom front, top back
-    if (anchor === 2 || type === 2) return { depth: "front", edge: "bottom" };
-    if (anchor === 3 || type === 3) return { depth: "back", edge: "top" };
-    if (anchor === 1 || type === 1) return { depth: "front", edge: "top" };
-
-    if (typeof order === "number" && total >= 2) {
-        if (order === 0 || order === 1) return { depth: "front", edge: "top" };
-        if (order === 2) return { depth: "front", edge: "bottom" };
-        if (order >= 3) return { depth: "back", edge: "top" };
-    }
-
-    // Index fallback matching the butterfly frame DOM order:
-    // 0 front top, 1 front bottom, 2 back top
-    if (total >= 3) {
-        if (index === 0) return { depth: "front", edge: "top" };
-        if (index === 1) return { depth: "front", edge: "bottom" };
-        return { depth: "back", edge: "top" };
-    }
-    if (total === 2) {
-        return index === 0
-            ? { depth: "front", edge: "top" }
-            : { depth: "front", edge: "bottom" };
-    }
-    return { depth: "front", edge: "top" };
-}
-
-/** @deprecated use getProfileFrameLayerPlacement */
-export function getProfileFrameLayerAnchor(layer: any): "top" | "bottom" | "full" | "side" {
-    const p = getProfileFrameLayerPlacement(layer, 0, 1);
-    return p.edge;
-}
-
-/**
- * Fingerprint a profile frame for change detection.
- * SKU only — layer/overflow detail fluctuates across partial payloads and caused
- * false add/remove thrash + triple logs.
- */
-export function fingerprintProfileFrame(frame: any): string | null {
-    if (!frame) return null;
-    const sku = frame.sku_id ?? frame.skuId ?? null;
-    if (sku != null && String(sku).length > 0) return String(sku);
-    return null;
-}
-
 export function fingerprintNameplate(np: any): string | null {
     if (!np) return null;
     return (np.sku_id ?? np.skuId ?? np.asset ?? null) as string | null;
@@ -457,6 +139,210 @@ export function fingerprintNameplate(np: any): string | null {
 export function fingerprintProfileEffect(effect: any): string | null {
     if (!effect) return null;
     return String(effect.id ?? effect.sku_id ?? effect.skuId ?? "") || null;
+}
+
+export type ResolvedProfileEffectPreview = {
+    id: string;
+    title: string;
+    /** Overlay image — same role as Discord `.profileEffects img.effect`. */
+    effectUrl: string | null;
+    thumbnailUrl: string | null;
+    accessibilityLabel: string | null;
+};
+
+/** Prefer Discord's live overlay src (`media/v1/collectibles-shop/...` or assets/content). */
+export function pickEffectOverlayUrl(obj: any): string | null {
+    if (!obj) return null;
+    if (typeof obj.effectSrc === "string" && obj.effectSrc.startsWith("http")) return obj.effectSrc;
+
+    const layers = Array.isArray(obj.effects) ? obj.effects : [];
+    // Prefer looping/idle layer (what Discord keeps on the profile), then intro
+    const loop = [...layers].reverse().find((layer: any) => layer?.loop && (layer.src || layer.url));
+    if (loop) {
+        const src = loop.src ?? loop.url;
+        if (typeof src === "string" && src.startsWith("http")) return src;
+    }
+    for (const layer of layers) {
+        const src = layer?.src ?? layer?.url;
+        if (typeof src === "string" && src.startsWith("http")) return src;
+    }
+
+    const urls = [
+        obj.reducedMotionSrc,
+        obj.reduced_motion_src,
+        obj.staticFrameSrc,
+        obj.static_frame_src,
+        obj.thumbnailPreviewSrc,
+        obj.thumbnail_preview_src,
+        obj.assets?.animated_image_url,
+        obj.assets?.static_image_url,
+    ];
+    for (const u of urls) {
+        if (typeof u === "string" && u.startsWith("http")) return u;
+    }
+    return null;
+}
+
+function pickEffectThumb(obj: any): string | null {
+    if (!obj) return null;
+    const urls = [
+        obj.thumbnailPreviewSrc,
+        obj.thumbnail_preview_src,
+        obj.staticFrameSrc,
+        obj.static_frame_src,
+        obj.reducedMotionSrc,
+        obj.reduced_motion_src,
+        obj.effectSrc,
+        obj.assets?.static_image_url,
+        obj.assets?.animated_image_url,
+    ];
+    for (const u of urls) {
+        if (typeof u === "string" && u.startsWith("http")) return u;
+    }
+    if (Array.isArray(obj.effects)) {
+        for (const layer of obj.effects) {
+            const src = layer?.src ?? layer?.url;
+            if (typeof src === "string" && src.startsWith("http")) return src;
+        }
+    }
+    return null;
+}
+
+function shortEffectLabel(id: string): string {
+    return id.length > 6 ? `Effect …${id.slice(-4)}` : `Effect ${id}`;
+}
+
+/**
+ * Resolve a displayable profile-effect preview from logged data and/or Discord shop catalog.
+ * User profiles usually only carry `{ id, sku_id }` — thumbs/titles live in the catalog.
+ */
+export function resolveProfileEffectPreview(
+    effect: {
+        id?: string;
+        skuId?: string;
+        sku_id?: string;
+        title?: string | null;
+        accessibilityLabel?: string | null;
+        effectSrc?: string | null;
+        thumbnailPreviewSrc?: string | null;
+        staticFrameSrc?: string | null;
+        reducedMotionSrc?: string | null;
+        effects?: Array<{ src?: string; }> | null;
+    } | string | null | undefined
+): ResolvedProfileEffectPreview | null {
+    if (!effect) return null;
+    const id = typeof effect === "string"
+        ? effect
+        : String(effect.id ?? effect.sku_id ?? effect.skuId ?? "");
+    if (!id) return null;
+
+    let title = typeof effect === "object" ? (effect.title ?? null) : null;
+    let accessibilityLabel = typeof effect === "object" ? (effect.accessibilityLabel ?? null) : null;
+    let effectUrl = typeof effect === "object" ? pickEffectOverlayUrl(effect) : null;
+    let thumbnailUrl = typeof effect === "object" ? pickEffectThumb(effect) : null;
+
+    if (!effectUrl || !thumbnailUrl || !title) {
+        try {
+            const catalog = lookupProfileEffectInCatalog(id)
+                ?? (typeof effect === "object" && (effect.sku_id || effect.skuId)
+                    ? lookupProfileEffectInCatalog(String(effect.sku_id ?? effect.skuId))
+                    : null);
+            if (catalog) {
+                title = title || catalog.title || catalog.name || null;
+                accessibilityLabel = accessibilityLabel
+                    || catalog.accessibilityLabel
+                    || catalog.accessibility_label
+                    || null;
+                effectUrl = effectUrl || pickEffectOverlayUrl(catalog);
+                thumbnailUrl = thumbnailUrl || pickEffectThumb(catalog);
+            }
+        } catch { /* catalog unavailable */ }
+    }
+
+    return {
+        id,
+        title: title || accessibilityLabel || shortEffectLabel(id),
+        effectUrl: effectUrl || thumbnailUrl,
+        thumbnailUrl: thumbnailUrl || effectUrl,
+        accessibilityLabel: accessibilityLabel || title,
+    };
+}
+
+/** Best-effort lookup of PROFILE_EFFECT (type 1) collectible by id/sku in Discord stores. */
+function lookupProfileEffectInCatalog(idOrSku: string): any | null {
+    if (!idOrSku) return null;
+    const stores: any[] = [];
+    try {
+        // @ts-expect-error optional webpack
+        const { findStore } = require("@webpack") as any;
+        if (typeof findStore === "function") {
+            for (const name of [
+                "CollectiblesCatalogStore",
+                "CollectiblesPurchaseStore",
+                "CollectiblesStore",
+                "SkuStore",
+            ]) {
+                try {
+                    const s = findStore(name);
+                    if (s) stores.push(s);
+                } catch { /* missing */ }
+            }
+        }
+    } catch { /* no webpack */ }
+
+    const matchItem = (item: any): boolean => {
+        if (!item) return false;
+        const ids = [
+            item.id,
+            item.sku_id,
+            item.skuId,
+            item.sku?.id,
+        ].map(x => x != null ? String(x) : "");
+        return ids.includes(idOrSku);
+    };
+
+    for (const store of stores) {
+        try {
+            const direct =
+                store.getProfileEffect?.(idOrSku)
+                ?? store.getProduct?.(idOrSku)
+                ?? store.getCollectiblesProduct?.(idOrSku)
+                ?? store.get?.(idOrSku)
+                ?? store.products?.[idOrSku]
+                ?? store.getState?.()?.products?.[idOrSku];
+            if (direct) {
+                const items = direct.items ?? direct.products ?? [];
+                const effectItem = Array.isArray(items)
+                    ? (items.find((i: any) => i?.type === 1 || i?.thumbnailPreviewSrc || i?.effects) ?? items[0])
+                    : null;
+                if (effectItem && (effectItem.type === 1 || effectItem.thumbnailPreviewSrc || effectItem.effects)) {
+                    return effectItem;
+                }
+                if (direct.type === 1 || direct.thumbnailPreviewSrc || direct.effects) return direct;
+            }
+
+            // Scan product maps when direct key miss (id vs sku mismatch)
+            const maps = [
+                store.getState?.()?.products,
+                store.products,
+                store.getState?.()?.profileEffects,
+                store.profileEffects,
+            ].filter(Boolean);
+            for (const map of maps) {
+                const values = typeof map === "object" ? Object.values(map) : [];
+                for (const product of values as any[]) {
+                    if (matchItem(product) && (product.type === 1 || product.thumbnailPreviewSrc || product.effects)) {
+                        return product;
+                    }
+                    const items = product?.items ?? product?.products;
+                    if (!Array.isArray(items)) continue;
+                    const hit = items.find((i: any) => matchItem(i) && (i.type === 1 || i.thumbnailPreviewSrc || i.effects));
+                    if (hit) return hit;
+                }
+            }
+        } catch { /* next store */ }
+    }
+    return null;
 }
 
 function objectHasKey(obj: any, key: string): boolean {
@@ -507,25 +393,6 @@ export function extractProfileCosmetics(user: any, profile?: any) {
         u.nameplate ??
         null;
 
-    const profileFrameRaw =
-        collectibles?.profile_frame ??
-        collectibles?.profileFrame ??
-        up.profile_frame ??
-        up.profileFrame ??
-        p.profile_frame ??
-        p.profileFrame ??
-        u.profile_frame ??
-        u.profileFrame ??
-        null;
-
-    const sawFrameField =
-        sawCollectibles ||
-        profileFrameRaw != null ||
-        objectHasKey(u, "profile_frame") || objectHasKey(u, "profileFrame") ||
-        objectHasKey(p, "profile_frame") || objectHasKey(p, "profileFrame") ||
-        objectHasKey(up, "profile_frame") || objectHasKey(up, "profileFrame") ||
-        (collectibles != null && (objectHasKey(collectibles, "profile_frame") || objectHasKey(collectibles, "profileFrame")));
-
     const sawNameplateField =
         sawCollectibles ||
         nameplateRaw != null ||
@@ -534,7 +401,7 @@ export function extractProfileCosmetics(user: any, profile?: any) {
         objectHasKey(up, "nameplate") ||
         (collectibles != null && (objectHasKey(collectibles, "nameplate") || objectHasKey(collectibles, "namePlate")));
 
-    const profileEffectRaw =
+    let profileEffectRaw =
         up.profile_effect ??
         up.profileEffect ??
         p.profile_effect ??
@@ -542,6 +409,30 @@ export function extractProfileCosmetics(user: any, profile?: any) {
         u.profile_effect ??
         u.profileEffect ??
         null;
+
+    // Lean payloads often only have { id, skuId }. Full overlay layers live on
+    // profile.collectibles[] / catalog — merge those in when sku matches.
+    if (profileEffectRaw && !profileEffectRaw.effects && !profileEffectRaw.thumbnailPreviewSrc) {
+        const sku = String(profileEffectRaw.sku_id ?? profileEffectRaw.skuId ?? profileEffectRaw.id ?? "");
+        const lists = [
+            Array.isArray(collectibles) ? collectibles : null,
+            Array.isArray(up.collectibles) ? up.collectibles : null,
+            Array.isArray(p.collectibles) ? p.collectibles : null,
+            Array.isArray(collectibles?.profile_effects) ? collectibles.profile_effects : null,
+            Array.isArray(collectibles?.profileEffects) ? collectibles.profileEffects : null,
+        ].filter(Boolean) as any[][];
+        for (const list of lists) {
+            const hit = list.find((c: any) => {
+                if (!c) return false;
+                const ids = [c.sku_id, c.skuId, c.id].map(x => x != null ? String(x) : "");
+                return sku && ids.includes(sku);
+            });
+            if (hit && (hit.effects || hit.thumbnailPreviewSrc || hit.title)) {
+                profileEffectRaw = { ...hit, ...profileEffectRaw };
+                break;
+            }
+        }
+    }
 
     const sawEffectField =
         profileEffectRaw != null ||
@@ -569,46 +460,88 @@ export function extractProfileCosmetics(user: any, profile?: any) {
             ? null
             : undefined;
 
-    const profileFrameData = profileFrameRaw
-        ? {
-            skuId: profileFrameRaw.sku_id ?? profileFrameRaw.skuId,
-            sku_id: profileFrameRaw.sku_id ?? profileFrameRaw.skuId,
-            label: profileFrameRaw.label,
-            layers: Array.isArray(profileFrameRaw.layers)
-                ? profileFrameRaw.layers.map((l: any) => ({
-                    id: l?.id,
-                    type: l?.type,
-                    order: l?.order,
-                    anchor: l?.anchor,
-                    responsive: l?.responsive,
-                    asset: l?.asset,
-                    src: l?.src ?? l?.url,
-                    assets: l?.assets,
-                }))
-                : undefined,
-            inner_width: profileFrameRaw.inner_width ?? profileFrameRaw.innerWidth,
-            overflow_top: profileFrameRaw.overflow_top ?? profileFrameRaw.overflowTop,
-            overflow_bottom: profileFrameRaw.overflow_bottom ?? profileFrameRaw.overflowBottom,
-            overflow_horizontal: profileFrameRaw.overflow_horizontal ?? profileFrameRaw.overflowHorizontal,
-            store_listing_id: profileFrameRaw.store_listing_id ?? profileFrameRaw.storeListingId,
-            category_sku_id: profileFrameRaw.category_sku_id ?? profileFrameRaw.categorySkuId,
-            asset: profileFrameRaw.asset,
-            expires_at: profileFrameRaw.expires_at ?? null,
-        }
-        : sawFrameField
-            ? null
-            : undefined;
+    const normalizeEffectLayers = (raw: any): Array<{ src?: string; loop?: boolean; height?: number; width?: number; duration?: number; start?: number; loopDelay?: number; zIndex?: number; }> | null => {
+        if (!Array.isArray(raw) || !raw.length) return null;
+        return raw.map((layer: any) => ({
+            src: layer?.src ?? layer?.url ?? undefined,
+            loop: layer?.loop,
+            height: layer?.height,
+            width: layer?.width,
+            duration: layer?.duration,
+            start: layer?.start,
+            loopDelay: layer?.loopDelay ?? layer?.loop_delay,
+            zIndex: layer?.zIndex ?? layer?.z_index,
+        }));
+    };
 
-    const profileEffectData = profileEffectRaw
+    let profileEffectData = profileEffectRaw
         ? {
             id: String(profileEffectRaw.id ?? profileEffectRaw.sku_id ?? profileEffectRaw.skuId ?? ""),
             skuId: profileEffectRaw.sku_id ?? profileEffectRaw.skuId,
             sku_id: profileEffectRaw.sku_id ?? profileEffectRaw.skuId,
             expires_at: profileEffectRaw.expires_at ?? null,
+            title: profileEffectRaw.title ?? profileEffectRaw.name ?? null,
+            accessibilityLabel:
+                profileEffectRaw.accessibilityLabel
+                ?? profileEffectRaw.accessibility_label
+                ?? null,
+            effectSrc: pickEffectOverlayUrl(profileEffectRaw),
+            thumbnailPreviewSrc:
+                profileEffectRaw.thumbnailPreviewSrc
+                ?? profileEffectRaw.thumbnail_preview_src
+                ?? null,
+            staticFrameSrc:
+                profileEffectRaw.staticFrameSrc
+                ?? profileEffectRaw.static_frame_src
+                ?? null,
+            reducedMotionSrc:
+                profileEffectRaw.reducedMotionSrc
+                ?? profileEffectRaw.reduced_motion_src
+                ?? null,
+            effects: normalizeEffectLayers(profileEffectRaw.effects),
         }
         : sawEffectField
             ? null
             : undefined;
+
+    // Enrich from shop catalog so history logs keep overlay src / title for before≠after
+    if (profileEffectData?.id && (!profileEffectData.effectSrc || !profileEffectData.title || !profileEffectData.effects)) {
+        try {
+            const catalog = lookupProfileEffectInCatalog(profileEffectData.id)
+                ?? (profileEffectData.sku_id || profileEffectData.skuId
+                    ? lookupProfileEffectInCatalog(String(profileEffectData.sku_id ?? profileEffectData.skuId))
+                    : null);
+            if (catalog) {
+                const catalogLayers = normalizeEffectLayers(catalog.effects);
+                profileEffectData = {
+                    ...profileEffectData,
+                    title: profileEffectData.title || catalog.title || catalog.name || null,
+                    accessibilityLabel:
+                        profileEffectData.accessibilityLabel
+                        || catalog.accessibilityLabel
+                        || catalog.accessibility_label
+                        || null,
+                    effectSrc: profileEffectData.effectSrc || pickEffectOverlayUrl(catalog),
+                    thumbnailPreviewSrc:
+                        profileEffectData.thumbnailPreviewSrc
+                        || catalog.thumbnailPreviewSrc
+                        || catalog.thumbnail_preview_src
+                        || null,
+                    staticFrameSrc:
+                        profileEffectData.staticFrameSrc
+                        || catalog.staticFrameSrc
+                        || catalog.static_frame_src
+                        || null,
+                    reducedMotionSrc:
+                        profileEffectData.reducedMotionSrc
+                        || catalog.reducedMotionSrc
+                        || catalog.reduced_motion_src
+                        || null,
+                    effects: profileEffectData.effects || catalogLayers,
+                };
+            }
+        } catch { /* catalog optional */ }
+    }
 
     // Avatar decoration: only clear when we saw a decoration-related field
     const sawDecoration =
@@ -622,7 +555,7 @@ export function extractProfileCosmetics(user: any, profile?: any) {
         avatarDecoration: sawDecoration ? (avatarDecorationData?.asset ?? null) : undefined,
         nameplateData,
         nameplate: sawNameplateField ? fingerprintNameplate(nameplateData) : undefined,
-        // Profile frames: do not extract/return — logging was too noisy/false-positive
+        // Profile frames: not tracked (logging/overlay was unreliable)
         profileFrameData: undefined,
         profileFrame: undefined,
         profileEffectData: sawEffectField
@@ -705,6 +638,7 @@ export function getPlatformLabel(device?: string | null) {
         case "web": return "Web";
         case "embedded": return "Console";
         case "console": return "Console";
+        case "vr": return "VR";
         default: return device ? device.charAt(0).toUpperCase() + device.slice(1) : "Unknown";
     }
 }
@@ -718,7 +652,9 @@ function isOfflineStatus(status?: string | null) {
     return !s || s === "offline" || s === "invisible";
 }
 
-const PLATFORM_KEYS = ["desktop", "mobile", "web", "embedded"] as const;
+/** Canonical client_status keys we track (Discord: desktop/mobile/web/embedded/vr). */
+export const PLATFORM_KEYS = ["desktop", "mobile", "web", "embedded", "vr"] as const;
+export type PlatformKey = (typeof PLATFORM_KEYS)[number];
 
 export type PlatformChange = {
     device: string;
